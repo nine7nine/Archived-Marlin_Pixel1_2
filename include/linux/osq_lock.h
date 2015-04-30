@@ -24,4 +24,9 @@ static inline void osq_lock_init(struct optimistic_spin_queue *lock)
 	atomic_set(&lock->tail, OSQ_UNLOCKED_VAL);
 }
 
+static inline bool osq_is_locked(struct optimistic_spin_queue *lock)
+{
+	return atomic_read(&lock->tail) != OSQ_UNLOCKED_VAL;
+}
+
 #endif
