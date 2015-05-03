@@ -5675,7 +5675,7 @@ static struct notifier_block migration_notifier = {
 	.priority = CPU_PRI_MIGRATION,
 };
 
-static void __cpuinit set_cpu_rq_start_time(void)
+static void set_cpu_rq_start_time(void)
 {
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
@@ -8223,11 +8223,11 @@ static long sched_group_rt_runtime(struct task_group *tg)
 	return rt_runtime_us;
 }
 
-static int sched_group_set_rt_period(struct task_group *tg, long rt_period_us)
+static int sched_group_set_rt_period(struct task_group *tg, u64 rt_period_us)
 {
 	u64 rt_runtime, rt_period;
 
-	rt_period = (u64)rt_period_us * NSEC_PER_USEC;
+	rt_period = rt_period_us * NSEC_PER_USEC;
 	rt_runtime = tg->rt_bandwidth.rt_runtime;
 
 	if (rt_period == 0)
