@@ -1772,7 +1772,6 @@ static void __kmemleak_do_cleanup(void)
  */
 static void kmemleak_do_cleanup(struct work_struct *work)
 {
-	mutex_lock(&scan_mutex);
 	stop_scan_thread();
 
 	/*
@@ -1787,7 +1786,6 @@ static void kmemleak_do_cleanup(struct work_struct *work)
 	else
 		pr_info("Kmemleak disabled without freeing internal data. "
 			"Reclaim the memory with \"echo clear > /sys/kernel/debug/kmemleak\"\n");
-	mutex_unlock(&scan_mutex);
 }
 
 static DECLARE_WORK(cleanup_work, kmemleak_do_cleanup);
