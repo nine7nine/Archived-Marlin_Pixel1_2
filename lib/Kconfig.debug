@@ -1559,6 +1559,13 @@ config UFS_FAULT_INJECTION
 	 the UFS contoller driver and test how the driver handles
 	 the retries from block/SCSI mid layer.
 
+config FAIL_FUTEX
+	bool "Fault-injection capability for futexes"
+	select DEBUG_FS
+	depends on FAULT_INJECTION && FUTEX
+	help
+	  Provide fault-injection capability for futexes.
+
 config FAULT_INJECTION_DEBUG_FS
 	bool "Debugfs entries for fault-injection capabilities"
 	depends on FAULT_INJECTION && SYSFS && DEBUG_FS
