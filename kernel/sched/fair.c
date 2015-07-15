@@ -4381,6 +4381,14 @@ hrtick_start_fair(struct rq *rq, struct task_struct *p)
 
 static inline void hrtick_update(struct rq *rq)
 {
+	struct rq *rq = cpu_rq(cpu);
+	struct cfs_rq *cfs_rq = &rq->cfs;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	update_rq_clock(rq);
+	update_cfs_rq_load_avg(cfs_rq_clock_task(cfs_rq), cfs_rq);
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 #endif
 
