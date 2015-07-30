@@ -12,6 +12,7 @@ TARGETS += timers
 TARGETS += vm
 TARGETS += powerpc
 TARGETS += user
+TARGETS += jumplabel
 TARGETS += sysctl
 TARGETS += firmware
 TARGETS += ftrace
