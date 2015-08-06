@@ -35,7 +35,6 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 	unsigned int tmp;
 #endif
 
-	smp_mb();
 	prefetchw((const void *)ptr);
 
 	switch (size) {
@@ -113,6 +112,8 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 #ifdef CONFIG_SMP
 #error "SMP is not supported on this platform"
 #endif
+
+#define xchg xchg_relaxed
 
 /*
  * cmpxchg_local and cmpxchg64_local are atomic wrt current CPU. Always make
