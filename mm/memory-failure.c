@@ -1580,8 +1580,8 @@ static int soft_offline_huge_page(struct page *page, int flags)
 			atomic_long_add(1 << compound_order(hpage),
 					&num_poisoned_pages);
 		} else {
-			SetPageHWPoison(page);
-			atomic_long_inc(&num_poisoned_pages);
+			if (!TestSetPageHWPoison(page))
+				atomic_long_inc(&num_poisoned_pages);
 		}
 	}
 	return ret;
