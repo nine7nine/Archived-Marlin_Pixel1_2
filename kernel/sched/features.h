@@ -71,22 +71,6 @@ SCHED_FEAT(LB_MIN, false)
 SCHED_FEAT(ATTACH_AGE_LOAD, true)
 
 /*
- * Apply the automatic NUMA scheduling policy. Enabled automatically
- * at runtime if running on a NUMA machine. Can be controlled via
- * numa_balancing=
- */
-#ifdef CONFIG_NUMA_BALANCING
-
-/*
- * NUMA will favor moving tasks towards nodes where a higher number of
- * hinting faults are recorded during active load balancing. It will
- * resist moving tasks towards nodes where a lower number of hinting
- * faults have been recorded.
- */
-SCHED_FEAT(NUMA,	true)
-#endif
-
-/*
  * Energy aware scheduling. Use platform energy model to guide scheduling
  * decisions optimizing for energy efficiency.
  */

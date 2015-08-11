@@ -2290,12 +2290,6 @@ __read_mostly bool sched_numa_balancing;
 void set_numabalancing_state(bool enabled)
 {
 	sched_numa_balancing = enabled;
-#ifdef CONFIG_SCHED_DEBUG
-	if (enabled)
-		sched_feat_set("NUMA");
-	else
-		sched_feat_set("NO_NUMA");
-#endif /* CONFIG_SCHED_DEBUG */
 }
 
 #ifdef CONFIG_PROC_SYSCTL
