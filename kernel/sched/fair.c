@@ -1992,7 +1992,7 @@ void task_numa_fault(int last_cpupid, int mem_node, int pages, int flags)
 	int local = !!(flags & TNF_FAULT_LOCAL);
 	int priv;
 
-	if (!numabalancing_enabled)
+	if (!sched_numa_balancing)
 		return;
 
 	/* for example, ksmd faulting in a user's mm */
@@ -9700,7 +9700,7 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 		entity_tick(cfs_rq, se, queued);
 	}
 
-	if (numabalancing_enabled)
+	if (sched_numa_balancing)
 		task_tick_numa(rq, curr);
 
 #ifdef CONFIG_SMP
