@@ -62,8 +62,7 @@ static int dev_pm_attach_wake_irq(struct device *dev, int irq,
  *
  * Attach a device IO interrupt as a wake IRQ. The wake IRQ gets
  * automatically configured for wake-up from suspend  based
- * on the device specific sysfs wakeup entry. Typically called
- * during driver probe after calling device_init_wakeup().
+ * on the device specific sysfs wakeup entry.
  */
 int dev_pm_set_wake_irq(struct device *dev, int irq)
 {
@@ -80,9 +79,13 @@ int dev_pm_set_wake_irq(struct device *dev, int irq)
 	wirq->dev = dev;
 	wirq->irq = irq;
 
+	device_init_wakeup(dev, true);
+
 	err = dev_pm_attach_wake_irq(dev, irq, wirq);
-	if (err)
+	if (!err) {
 		kfree(wirq);
+		device_init_wakeup(dev, false);
+	}
 
 	return err;
 }
@@ -107,6 +110,7 @@ void dev_pm_clear_wake_irq(struct device *dev)
 	if (!wirq)
 		return;
 
+	device_init_wakeup(dev, false);
 	spin_lock_irqsave(&dev->power.lock, flags);
 	dev->power.wakeirq = NULL;
 	spin_unlock_irqrestore(&dev->power.lock, flags);
