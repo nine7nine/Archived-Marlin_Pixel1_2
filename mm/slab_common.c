@@ -143,6 +143,9 @@ static int memcg_update_cache_params(struct kmem_cache *s, int num_memcgs)
 	int size;
 	struct memcg_cache_params *new_params, *cur_params;
 
+	if (unlikely(!s))
+		return;
+
 	BUG_ON(!is_root_cache(s));
 
 	size = offsetof(struct memcg_cache_params, memcg_caches);
