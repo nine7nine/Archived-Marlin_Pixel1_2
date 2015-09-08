@@ -993,12 +993,15 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 				 */
 				SetPageReclaim(page);
 				nr_writeback++;
-
 				goto keep_locked;
 
 			/* Case 3 above */
 			} else {
+				unlock_page(page);
 				wait_on_page_writeback(page);
+				/* then go back and try same page again */
+				list_add_tail(&page->lru, page_list);
+				continue;
 			}
 		}
 
