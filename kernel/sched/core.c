@@ -3326,7 +3326,7 @@ again:
  *
  * WARNING: must be called with preemption disabled!
  */
-static void __sched __schedule(void)
+static void __sched __schedule(bool preempt)
 {
 	struct task_struct *prev, *next;
 	unsigned long *switch_count;
@@ -3366,7 +3366,7 @@ static void __sched __schedule(void)
 	rq->clock_skip_update <<= 1; /* promote REQ to ACT */
 
 	switch_count = &prev->nivcsw;
-	if (prev->state && !(preempt_count() & PREEMPT_ACTIVE)) {
+	if (!preempt && prev->state) {
 		if (unlikely(signal_pending_state(prev->state, prev))) {
 			prev->state = TASK_RUNNING;
 		} else {
@@ -3436,7 +3436,7 @@ asmlinkage __visible void __sched schedule(void)
 	sched_submit_work(tsk);
 	do {
 		preempt_disable();
-		__schedule();
+		__schedule(false);
 		sched_preempt_enable_no_resched();
 	} while (need_resched());
 }
@@ -3477,7 +3477,7 @@ static void preempt_schedule_common(void)
 {
 	do {
 		preempt_active_enter();
-		__schedule();
+		__schedule(true);
 		preempt_active_exit();
 
 		/*
@@ -3542,7 +3542,7 @@ asmlinkage __visible void __sched notrace preempt_schedule_notrace(void)
 		 * an infinite recursion.
 		 */
 		prev_ctx = exception_enter();
-		__schedule();
+		__schedule(true);
 		exception_exit(prev_ctx);
 
 		barrier();
@@ -3571,7 +3571,7 @@ asmlinkage __visible void __sched preempt_schedule_irq(void)
 	do {
 		preempt_active_enter();
 		local_irq_enable();
-		__schedule();
+		__schedule(true);
 		local_irq_disable();
 		preempt_active_exit();
 	} while (need_resched());
