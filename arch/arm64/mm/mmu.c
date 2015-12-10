@@ -426,6 +426,9 @@ static void __init map_mem(void)
 	struct memblock_region *reg;
 	phys_addr_t limit;
 
+	/* Ensure the zero page is visible to the page table walker */
+	dsb(ishst);
+
 	/*
 	 * Temporarily limit the memblock range. We need to do this as
 	 * create_mapping requires puds, pmds and ptes to be allocated from
