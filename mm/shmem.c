@@ -1106,6 +1106,8 @@ repeat:
 			error = -EIO;
 			goto failed;
 		}
+		if (!PageLocked(page))
+			dump_page(page, "Page not locked");
 		wait_on_page_writeback(page);
 
 		if (shmem_should_replace_page(page, gfp)) {
