@@ -2002,6 +2002,9 @@ struct task_struct {
 	unsigned long	task_state_change;
 #endif
 	int pagefault_disabled;
+#ifdef CONFIG_MMU
+	struct list_head oom_reaper_list;
+#endif
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
