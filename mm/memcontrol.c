@@ -1582,7 +1582,8 @@ static void mem_cgroup_out_of_memory(struct mem_cgroup *memcg, gfp_t gfp_mask,
 	 * quickly exit and free its memory.
 	 */
 	if (fatal_signal_pending(current) || task_will_free_mem(current)) {
-		set_thread_flag(TIF_MEMDIE);
+ 		mark_oom_victim(current);
+		try_oom_reaper(current);
 		return;
 	}
 
