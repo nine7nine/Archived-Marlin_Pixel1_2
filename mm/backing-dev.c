@@ -373,6 +373,11 @@ void bdi_unregister(struct backing_dev_info *bdi)
 		return;
 
 	bdi_set_min_ratio(bdi, 0);
+
+	if (bdi->owner) {
+		put_device(bdi->owner);
+		bdi->owner = NULL;
+	}
 }
 EXPORT_SYMBOL(bdi_unregister);
 
@@ -458,6 +463,20 @@ void bdi_destroy(struct backing_dev_info *bdi)
 	fprop_local_destroy_percpu(&bdi->completions);
 }
 EXPORT_SYMBOL(bdi_destroy);
+
+int bdi_register_owner(struct backing_dev_info *bdi, struct device *owner)
+{
+	int rc;
+
+	rc = bdi_register(bdi, NULL, "%u:%u", MAJOR(owner->devt),
+			MINOR(owner->devt));
+	if (rc)
+		return rc;
+	bdi->owner = owner;
+	get_device(owner);
+	return 0;
+}
+EXPORT_SYMBOL(bdi_register_owner);
 
 /*
  * For use from filesystems to quickly init and register a bdi associated
