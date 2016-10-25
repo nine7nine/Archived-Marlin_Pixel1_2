@@ -126,7 +126,7 @@ void queued_write_lock_slowpath(struct qrwlock *lock)
 		   (cmpxchg_relaxed(&l->wmode, 0, _QW_WAITING) == 0))
 			break;
 
-		cpu_relax_lowlatency();
+		cpu_relax();
 	}
 
 	/* When no more readers, set the locked flag */
