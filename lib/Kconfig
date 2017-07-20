@@ -537,4 +537,7 @@ config QMI_ENCDEC_DEBUG
 config SBITMAP
 	bool
 
+config STRING_SELFTEST
+	bool "Test string functions"
+
 endmenu
