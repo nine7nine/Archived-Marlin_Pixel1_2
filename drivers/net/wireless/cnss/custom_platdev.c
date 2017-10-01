@@ -38,6 +38,42 @@
 #define CALIBRATION_DATA_PATH "/calibration_data"
 #define WIFI_FLASH_DATA "wifi_eeprom"
 
+static int randomize_mac = 1;
+
+static struct ctl_table randomize_mac_table[] =
+{
+	{
+		.procname	= "randomize_mac",
+		.data		= &randomize_mac,
+		.maxlen		= sizeof(int),
+		.mode		= 0600,
+		.proc_handler	= proc_dointvec
+	},
+	{ }
+};
+
+static struct ctl_table cnss_table[] =
+{
+	{
+		.procname	= "cnss",
+		.maxlen         = 0,
+		.mode		= 0555,
+		.child		= randomize_mac_table,
+	},
+	{ }
+};
+
+static struct ctl_table dev_table[] =
+{
+	{
+		.procname	= "dev",
+		.maxlen         = 0,
+		.mode		= 0555,
+		.child		= cnss_table,
+	},
+	{ }
+};
+
 static unsigned char wifi_nvs_ram[NVS_MAX_SIZE];
 static struct proc_dir_entry *wifi_country;
 
@@ -71,7 +107,7 @@ no_data:
 }
 EXPORT_SYMBOL(get_wifi_nvs_ram);
 
-static void set_wifi_mac(void)
+void set_wifi_mac(void)
 {
 	unsigned char *ptr;
 	const char *src;
@@ -88,7 +124,9 @@ static void set_wifi_mac(void)
 		/*To avoid invalid mac, set mac[0] and mac[1]*/
 		mac[0] = 0x00;
 		mac[1] = 0x88;
-	}
+	} else if (randomize_mac)
+		get_random_bytes(&mac[3], 3);
+
 	/*Intf1MacAddress*/
 	mac[6] = mac[0]|2;
 	for (i = 1;  i < 6; i++) {
@@ -98,6 +136,7 @@ static void set_wifi_mac(void)
 	if (cnss_pcie_set_wlan_mac_address(mac, sizeof(mac)) != 0)
 		pr_err("[WLAN] set wlan mac address failed");
 }
+EXPORT_SYMBOL(set_wifi_mac);
 
 static ssize_t wifi_country_read_proc
 (struct file *file, char __user *buf, size_t size, loff_t *ppos)
@@ -140,6 +179,7 @@ static const struct file_operations wifi_country_fops = {
 
 static int __init wifi_nvs_init(void)
 {
+	register_sysctl_table(dev_table);
 	set_wifi_mac();
 	wifi_country = proc_create_data("wifi_country", 0444, NULL,
 			&wifi_country_fops, NULL);

@@ -2240,7 +2240,6 @@ int cnss_pcie_set_wlan_mac_address(const u8 *in, uint32_t len)
 
 	if (penv->is_wlan_mac_set) {
 		pr_info("%s: Already MAC address are configured\n", __func__);
-		return 0;
 	}
 
 	penv->is_wlan_mac_set = true;
