@@ -250,7 +250,7 @@ int alloc_rt_sched_group(struct task_group *tg, struct task_group *parent)
 
 #ifdef CONFIG_SMP
 
-static void pull_rt_task(struct rq *this_rq);
+static int pull_rt_task(struct rq *this_rq);
 
 static inline bool need_pull_rt_task(struct rq *rq, struct task_struct *prev)
 {
@@ -406,8 +406,9 @@ static inline bool need_pull_rt_task(struct rq *rq, struct task_struct *prev)
 	return false;
 }
 
-static inline void pull_rt_task(struct rq *this_rq)
+static inline int pull_rt_task(struct rq *this_rq)
 {
+	return 0;
 }
 
 static inline void queue_push_tasks(struct rq *rq)
@@ -2139,15 +2140,14 @@ static void push_rt_tasks(struct rq *rq)
 		;
 }
 
-static void pull_rt_task(struct rq *this_rq)
+static int pull_rt_task(struct rq *this_rq)
 {
-	int this_cpu = this_rq->cpu, cpu;
-	bool resched = false;
+	int this_cpu = this_rq->cpu, ret = 0, cpu;
 	struct task_struct *p;
 	struct rq *src_rq;
 
 	if (likely(!rt_overloaded(this_rq)))
-		return;
+		return 0;
 
 	/*
 	 * Match the barrier from rt_set_overloaded; this guarantees that if we
@@ -2204,7 +2204,7 @@ static void pull_rt_task(struct rq *this_rq)
 			if (p->prio < src_rq->curr->prio)
 				goto skip;
 
-			resched = true;
+			ret = 1;
 
 			deactivate_task(src_rq, p, 0);
 			set_task_cpu(p, this_cpu);
@@ -2220,8 +2220,7 @@ skip:
 		double_unlock_balance(this_rq, src_rq);
 	}
 
-	if (resched)
-		resched_curr(this_rq);
+	return ret;
 }
 
 /*
@@ -2324,7 +2323,8 @@ static void switched_from_rt(struct rq *rq, struct task_struct *p)
 	if (!task_on_rq_queued(p) || rq->rt.rt_nr_running)
 		return;
 
-	pull_rt_task(rq);
+	if (pull_rt_task(rq))
+		resched_curr(rq);
 }
 
 void __init init_sched_rt_class(void)
