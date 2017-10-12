@@ -5532,7 +5532,7 @@ static inline int find_best_target(struct task_struct *p, bool boosted, bool pre
 	return target_cpu;
 }
 
-static int energy_aware_wake_cpu(struct task_struct *p, int target)
+static int energy_aware_wake_cpu(struct task_struct *p, int target, int sync)
 {
 	struct sched_domain *sd;
 	struct sched_group *sg, *sg_target;
@@ -5541,6 +5541,14 @@ static int energy_aware_wake_cpu(struct task_struct *p, int target)
 	unsigned long min_util;
 	unsigned long new_util;
 	int i;
+
+	if (sysctl_sched_sync_hint_enable && sync) {
+		int cpu = smp_processor_id();
+		cpumask_t search_cpus;
+		cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_online_mask);
+		if (cpumask_test_cpu(cpu, &search_cpus))
+			return cpu;
+	}
 
 	sd = rcu_dereference(per_cpu(sd_ea, task_cpu(p)));
 
@@ -5694,24 +5702,10 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	}
 
 	if (!sd) {
-		int sync_used = 0;
-
-		if (sysctl_sched_sync_hint_enable && sync) {
-			cpumask_t search_cpus;
-			cpumask_and(&search_cpus, tsk_cpus_allowed(p),
-				    cpu_online_mask);
-			if (cpumask_test_cpu(cpu, &search_cpus)) {
-				sync_used = 1;
-				new_cpu = cpu;
-			}
-		}
-
-		if (!sync_used) {
-			if (energy_aware() && !cpu_rq(cpu)->rd->overutilized)
-				new_cpu = energy_aware_wake_cpu(p, prev_cpu);
-			else if (sd_flag & SD_BALANCE_WAKE) /* XXX always ? */
-				new_cpu = select_idle_sibling(p, new_cpu);
-		}
+		if (energy_aware() && !cpu_rq(cpu)->rd->overutilized)
+			new_cpu = energy_aware_wake_cpu(p, prev_cpu, sync);
+		else if (sd_flag & SD_BALANCE_WAKE) /* XXX always ? */
+			new_cpu = select_idle_sibling(p, new_cpu);
 
 	} else while (sd) {
 		struct sched_group *group;
