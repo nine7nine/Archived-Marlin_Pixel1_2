@@ -1,10 +1,22 @@
 --- kernel/sched/rt.c
 +++ kernel/sched/rt.c
-@@ -7,7 +7,6 @@
+@@ -1299,10 +1298,8 @@ enqueue_task_rt(struct rq *rq, struct task_struct *p, int flags)
+ 	enqueue_rt_entity(rt_se, flags & ENQUEUE_HEAD);
+ 	walt_inc_cumulative_runnable_avg(rq, p);
  
- #include <linux/interrupt.h>
- #include <linux/slab.h>
--#include <linux/irq_work.h>
+-	if (!task_current(rq, p) && p->nr_cpus_allowed > 1) {
++	if (!task_current(rq, p) && p->nr_cpus_allowed > 1)
+ 		enqueue_pushable_task(rq, p);
+-		schedtune_enqueue_task(p, cpu_of(rq));
+-	}
+ }
  
- #include "walt.h"
- #include "tune.h"
+ static void dequeue_task_rt(struct rq *rq, struct task_struct *p, int flags)
+@@ -1314,7 +1311,6 @@ static void dequeue_task_rt(struct rq *rq, struct task_struct *p, int flags)
+ 	walt_dec_cumulative_runnable_avg(rq, p);
+ 
+ 	dequeue_pushable_task(rq, p);
+-	schedtune_dequeue_task(p, cpu_of(rq));
+ }
+ 
+ /*
