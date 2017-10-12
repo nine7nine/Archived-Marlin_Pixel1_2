@@ -1,0 +1,10 @@
+--- kernel/sched/rt.c
++++ kernel/sched/rt.c
+@@ -7,7 +7,6 @@
+ 
+ #include <linux/interrupt.h>
+ #include <linux/slab.h>
+-#include <linux/irq_work.h>
+ 
+ #include "walt.h"
+ #include "tune.h"
