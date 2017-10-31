@@ -2005,6 +2005,7 @@ struct task_struct {
 #ifdef CONFIG_MMU
 	struct task_struct *oom_reaper_list;
 #endif
+	atomic64_t *concurrent_active_time;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
