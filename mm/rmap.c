@@ -1749,7 +1749,8 @@ static int rmap_walk_file(struct page *page, struct rmap_walk_control *rwc)
 
 	if (!mapping)
 		return ret;
-	i_mmap_lock_write(mapping);
+
+	ii_mmap_lock_read(mapping);
 	if (rwc->target_vma) {
                /* We don't handle non-linear vma on ramfs */
                if (unlikely(!list_empty(&mapping->i_mmap_nonlinear)))
@@ -1779,9 +1780,8 @@ static int rmap_walk_file(struct page *page, struct rmap_walk_control *rwc)
 		goto done;
 
 	ret = rwc->file_nonlinear(page, mapping, rwc->arg);
-
 done:
-	i_mmap_unlock_write(mapping);
+	i_mmap_unlock_read(mapping);
 	return ret;
 }
 
