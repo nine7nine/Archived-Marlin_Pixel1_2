@@ -1750,7 +1750,7 @@ static int rmap_walk_file(struct page *page, struct rmap_walk_control *rwc)
 	if (!mapping)
 		return ret;
 
-	ii_mmap_lock_read(mapping);
+	i_mmap_lock_read(mapping);
 	if (rwc->target_vma) {
                /* We don't handle non-linear vma on ramfs */
                if (unlikely(!list_empty(&mapping->i_mmap_nonlinear)))
