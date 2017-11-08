@@ -553,8 +553,6 @@ static irqreturn_t phy_interrupt(int irq, void *phy_dat)
 	 * queue will write the PHY to disable and clear the
 	 * interrupt, and then reenable the irq line.
 	 */
-	disable_irq_nosync(irq);
-	atomic_inc(&phydev->irq_disable);
 
 	queue_work(system_power_efficient_wq, &phydev->phy_queue);
 
@@ -667,18 +665,15 @@ void phy_change(struct work_struct *work)
 
 	if (phydev->drv->did_interrupt &&
 	    !phydev->drv->did_interrupt(phydev))
-		goto ignore;
+		return;
 
 	if (phy_disable_interrupts(phydev))
-		goto phy_err;
+		goto irq_enable_err;
 
 	mutex_lock(&phydev->lock);
 	if ((PHY_RUNNING == phydev->state) || (PHY_NOLINK == phydev->state))
 		phydev->state = PHY_CHANGELINK;
 	mutex_unlock(&phydev->lock);
-
-	atomic_dec(&phydev->irq_disable);
-	enable_irq(phydev->irq);
 
 	/* Reenable interrupts */
 	if (PHY_HALTED != phydev->state &&
@@ -690,15 +685,9 @@ void phy_change(struct work_struct *work)
 	queue_delayed_work(system_power_efficient_wq, &phydev->state_queue, 0);
 	return;
 
-ignore:
-	atomic_dec(&phydev->irq_disable);
-	enable_irq(phydev->irq);
-	return;
-
 irq_enable_err:
 	disable_irq(phydev->irq);
 	atomic_inc(&phydev->irq_disable);
-phy_err:
 	phy_error(phydev);
 }
 
