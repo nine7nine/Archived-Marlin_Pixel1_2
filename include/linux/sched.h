@@ -2006,6 +2006,7 @@ struct task_struct {
 	struct task_struct *oom_reaper_list;
 #endif
 	atomic64_t *concurrent_active_time;
+	atomic64_t *concurrent_policy_time;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
