@@ -2784,6 +2784,7 @@ static int uartdm_init_port(struct uart_port *uport)
 		ret = -ENOMEM;
 		goto exit_lh_init;
 	}
+	sched_setscheduler(tx->task, SCHED_FIFO, &param);
 
 	/* Set up Uart Receive */
 	msm_hs_write(uport, UART_DM_RFWR, 32);
