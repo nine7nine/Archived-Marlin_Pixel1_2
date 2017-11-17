@@ -2346,6 +2346,9 @@ int subsys_cgroup_allow_attach(struct cgroup_subsys_state *css, struct cgroup_ta
 	return 0;
 }
 
+/* NOT USED - But Leave in - EAS removed allow_attach before, then partially brough it back.
+   So just keep it around. + it exists in vanilla Marlin. 
+ 
 static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 {
 	struct cgroup_subsys_state *css;
@@ -2364,6 +2367,8 @@ static int cgroup_allow_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 
 	return 0;
 }
+
+*/
 
 /*
  * Find the task_struct of the task to attach by vpid and pass it along to the
