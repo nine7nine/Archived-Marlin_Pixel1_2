@@ -42,6 +42,9 @@
 #include "binder_alloc.h"
 #include "binder_trace.h"
 
+#include "binder_filter.h"
+extern int filter_binder_message(unsigned long, signed long, int, kuid_t, void*, size_t);
+
 static HLIST_HEAD(binder_deferred_list);
 static DEFINE_MUTEX(binder_deferred_lock);
 
@@ -1606,6 +1609,7 @@ static void binder_transaction_buffer_release(struct binder_proc *proc,
 		off_end = failed_at;
 	else
 		off_end = (void *)off_start + buffer->offsets_size;
+
 	for (offp = off_start; offp < off_end; offp++) {
 		struct binder_object_header *hdr;
 		size_t object_size = binder_validate_object(buffer, *offp);
@@ -2315,6 +2319,10 @@ static void binder_transaction(struct binder_proc *proc,
 		return_error_line = __LINE__;
 		goto err_bad_offset;
 	}
+
+	filter_binder_message((unsigned long)(t->buffer->data), tr->data_size, reply, 
+		t->sender_euid, (void*)offp, tr->offsets_size);
+
 	off_end = (void *)off_start + tr->offsets_size;
 	sg_bufp = (u8 *)(PTR_ALIGN(off_end, sizeof(void *)));
 	sg_buf_end = sg_bufp + extra_buffers_size;
@@ -4060,6 +4068,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EFAULT;
 			goto err;
 		}
+
 		break;
 	}
 	default:

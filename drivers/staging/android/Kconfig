@@ -148,6 +148,11 @@ config ONESHOT_SYNC_USER
 	help
 	  Provide a userspace API for creating oneshot sync objects.
 
+config ANDROID_BINDER_FILTER
+	bool "Binder filter"
+	depends on ANDROID_BINDER_IPC
+	default y
+
 source "drivers/staging/android/ion/Kconfig"
 
 source "drivers/staging/android/fiq_debugger/Kconfig"
