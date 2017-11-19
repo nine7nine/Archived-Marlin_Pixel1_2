@@ -30,10 +30,10 @@
 #define READ_SUCCESS 1
 #define READ_FAIL 0
 
-static int binder_filter_enable = 1;
+static int binder_filter_enable = 0;
 module_param_named(filter_enable, binder_filter_enable, int, S_IWUSR | S_IRUGO);
 
-static int binder_filter_block_messages = 1;
+static int binder_filter_block_messages = 0;
 module_param_named(filter_block_messages, binder_filter_block_messages, int, S_IWUSR | S_IRUGO);
 
 static int binder_filter_print_buffer_contents = 0;
