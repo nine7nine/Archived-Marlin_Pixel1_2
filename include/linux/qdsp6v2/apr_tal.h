@@ -80,6 +80,8 @@ int apr_tal_rx_intents_config(struct apr_svc_ch_dev *apr_ch,
 	 defined(CONFIG_MSM_QDSP6_APRV3_GLINK)
 int apr_tal_start_rx_rt(struct apr_svc_ch_dev *apr_ch);
 int apr_tal_end_rx_rt(struct apr_svc_ch_dev *apr_ch);
+int apr_tal_start_tx_rt(struct apr_svc_ch_dev *apr_ch);
+int apr_tal_end_tx_rt(struct apr_svc_ch_dev *apr_ch);
 
 struct apr_svc_ch_dev {
 	void               *handle;
@@ -95,6 +97,8 @@ struct apr_svc_ch_dev {
 #else
 static inline int apr_tal_start_rx_rt(struct apr_svc_ch_dev *apr_ch) { return 0; }
 static inline int apr_tal_end_rx_rt(struct apr_svc_ch_dev *apr_ch) { return 0; }
+static inline int apr_tal_start_tx_rt(struct apr_svc_ch_dev *apr_ch) { return 0; }
+static inline int apr_tal_end_tx_rt(struct apr_svc_ch_dev *apr_ch) { return 0; }
 
 struct apr_svc_ch_dev {
 	struct smd_channel *ch;

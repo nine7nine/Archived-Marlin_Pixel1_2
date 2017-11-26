@@ -643,6 +643,11 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 	if ((substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
 	    (pdata->perf_mode == LOW_LATENCY_PCM_MODE))
 		apr_start_rx_rt(prtd->audio_client->apr);
+	/* Vote to update the Tx thread priority to RT Thread for record */
+	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE) &&
+	    (pdata->perf_mode == LOW_LATENCY_PCM_MODE))
+		apr_start_tx_rt(prtd->audio_client->apr);
+
 
 	return 0;
 }
@@ -879,11 +884,23 @@ static int msm_pcm_capture_close(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *soc_prtd = substream->private_data;
 	struct msm_audio *prtd = runtime->private_data;
+	struct msm_plat_data *pdata;
 	int dir = OUT;
 	int rc = 0;
 
 	pr_debug("%s\n", __func__);
 	if (prtd->audio_client) {
+
+		/*
+		 * Unvote to downgrade the Tx thread priority from
+		 * RT Thread for Low-Latency use case.
+		 */
+		pdata = (struct msm_plat_data *)
+			dev_get_drvdata(soc_prtd->platform->dev);
+		if (pdata) {
+			if (pdata->perf_mode == LOW_LATENCY_PCM_MODE)
+				apr_end_tx_rt(prtd->audio_client->apr);
+		}
 		if (prtd->session_id) {
 			rc = q6asm_cmd(prtd->audio_client, CMD_CLOSE);
 			if (rc < 0)
