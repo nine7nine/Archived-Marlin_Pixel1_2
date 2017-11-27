@@ -8,7 +8,7 @@ KBUILD_CFLAGS = $(subst -pg,,$(ORIG_CFLAGS))
 ifdef CONFIG_FTRACE_SELFTEST
 # selftest needs instrumentation
 CFLAGS_trace_selftest_dynamic.o = -pg
-obj-y += trace_selftest_dynamic.o
+obj-y += trace_selftest_dynamic.o ${DISABLE_LTO}
 endif
 endif
 
