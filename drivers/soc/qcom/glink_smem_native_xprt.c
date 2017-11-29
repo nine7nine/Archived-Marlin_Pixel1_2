@@ -51,7 +51,7 @@
 #define RPM_MAX_TOC_ENTRIES 20
 #define RPM_FIFO_ADDR_ALIGN_BYTES 3
 #define TRACER_PKT_FEATURE BIT(2)
-
+#define DEFERRED_CMDS_THRESHOLD 25
 /**
  * enum command_types - definition of the types of commands sent/received
  * @VERSION_CMD:		Version and feature set supported
@@ -181,6 +181,9 @@ struct mailbox_config_info {
  *				processing.
  * @deferred_cmds:		List of deferred commands that need to be
  *				processed in process context.
+ * @deferred_cmds_cnt:		Number of deferred commands in queue.
+ * @rt_vote_lock:		Serialize access to RT rx votes
+ * @rt_votes:			Vote count for RT rx thread priority
  * @num_pw_states:		Size of @ramp_time_us.
  * @ramp_time_us:		Array of ramp times in microseconds where array
  *				index position represents a power state.
@@ -212,12 +215,16 @@ struct edge_info {
 	bool tx_blocked_signal_sent;
 	struct kthread_work kwork;
 	struct kthread_worker kworker;
+	struct work_struct wakeup_work;
 	struct task_struct *task;
 	struct tasklet_struct tasklet;
 	struct srcu_struct use_ref;
 	bool in_ssr;
 	spinlock_t rx_lock;
 	struct list_head deferred_cmds;
+	uint32_t deferred_cmds_cnt;
+	spinlock_t rt_vote_lock;
+	uint32_t rt_votes;
 	uint32_t num_pw_states;
 	unsigned long *ramp_time_us;
 	struct mailbox_config_info *mailbox;
@@ -768,6 +775,7 @@ static bool queue_cmd(struct edge_info *einfo, void *cmd, void *data)
 	d_cmd->param2 = _cmd->param2;
 	d_cmd->data = data;
 	list_add_tail(&d_cmd->list_node, &einfo->deferred_cmds);
+	einfo->deferred_cmds_cnt++;
 	queue_kthread_work(&einfo->kworker, &einfo->kwork);
 	return true;
 }
@@ -824,7 +832,6 @@ static void __rx_worker(struct edge_info *einfo, bool atomic_ctx)
 	int i;
 	bool granted;
 	unsigned long flags;
-	bool trigger_wakeup = false;
 	int rcu_id;
 	uint16_t rcid;
 	uint32_t name_len;
@@ -849,22 +856,10 @@ static void __rx_worker(struct edge_info *einfo, bool atomic_ctx)
 		srcu_read_unlock(&einfo->use_ref, rcu_id);
 		return;
 	}
-	if (!atomic_ctx) {
-		if (einfo->tx_resume_needed && fifo_write_avail(einfo)) {
-			einfo->tx_resume_needed = false;
-			einfo->xprt_if.glink_core_if_ptr->tx_resume(
-							&einfo->xprt_if);
-		}
-		spin_lock_irqsave(&einfo->write_lock, flags);
-		if (waitqueue_active(&einfo->tx_blocked_queue)) {
-			einfo->tx_blocked_signal_sent = false;
-			trigger_wakeup = true;
-		}
-		spin_unlock_irqrestore(&einfo->write_lock, flags);
-		if (trigger_wakeup)
-			wake_up_all(&einfo->tx_blocked_queue);
-	}
 
+	if ((atomic_ctx) && ((einfo->tx_resume_needed) ||
+		(waitqueue_active(&einfo->tx_blocked_queue)))) /* tx waiting ?*/
+		schedule_work(&einfo->wakeup_work);
 
 	/*
 	 * Access to the fifo needs to be synchronized, however only the calls
@@ -883,10 +878,15 @@ static void __rx_worker(struct edge_info *einfo, bool atomic_ctx)
 		if (einfo->in_ssr)
 			break;
 
+		if (atomic_ctx && !einfo->intentless &&
+		    einfo->deferred_cmds_cnt >= DEFERRED_CMDS_THRESHOLD)
+			break;
+
 		if (!atomic_ctx && !list_empty(&einfo->deferred_cmds)) {
 			d_cmd = list_first_entry(&einfo->deferred_cmds,
 						struct deferred_cmd, list_node);
 			list_del(&d_cmd->list_node);
+			einfo->deferred_cmds_cnt--;
 			cmd.id = d_cmd->id;
 			cmd.param1 = d_cmd->param1;
 			cmd.param2 = d_cmd->param2;
@@ -1164,6 +1164,39 @@ static void rx_worker_atomic(unsigned long param)
 	struct edge_info *einfo = (struct edge_info *)param;
 
 	__rx_worker(einfo, true);
+}
+
+/**
+ * tx_wakeup_worker() - worker function to wakeup tx blocked thread
+ * @work:	kwork associated with the edge to process commands on.
+ */
+static void tx_wakeup_worker(struct work_struct *work)
+{
+	struct edge_info *einfo;
+	bool trigger_wakeup = false;
+	unsigned long flags;
+	int rcu_id;
+
+	einfo = container_of(work, struct edge_info, wakeup_work);
+	rcu_id = srcu_read_lock(&einfo->use_ref);
+	if (einfo->in_ssr) {
+		srcu_read_unlock(&einfo->use_ref, rcu_id);
+		return;
+	}
+	if (einfo->tx_resume_needed && fifo_write_avail(einfo)) {
+		einfo->tx_resume_needed = false;
+		einfo->xprt_if.glink_core_if_ptr->tx_resume(
+						&einfo->xprt_if);
+	}
+	spin_lock_irqsave(&einfo->write_lock, flags);
+	if (waitqueue_active(&einfo->tx_blocked_queue)) { /* tx waiting ?*/
+		einfo->tx_blocked_signal_sent = false;
+		trigger_wakeup = true;
+	}
+	spin_unlock_irqrestore(&einfo->write_lock, flags);
+	if (trigger_wakeup)
+		wake_up_all(&einfo->tx_blocked_queue);
+	srcu_read_unlock(&einfo->use_ref, rcu_id);
 }
 
 /**
@@ -2058,6 +2091,52 @@ static int power_unvote(struct glink_transport_if *if_ptr)
 }
 
 /**
+ * rx_rt_vote() - Increment and RX thread RT vote
+ * @if_ptr:	The transport interface on which power voting is requested.
+ *
+ * Return: 0 on Success, standard error otherwise.
+ */
+static int rx_rt_vote(struct glink_transport_if *if_ptr)
+{
+	struct edge_info *einfo;
+	struct sched_param param = { .sched_priority = 1 };
+	int ret = 0;
+	unsigned long flags;
+
+	einfo = container_of(if_ptr, struct edge_info, xprt_if);
+	spin_lock_irqsave(&einfo->rt_vote_lock, flags);
+	if (!einfo->rt_votes)
+		ret = sched_setscheduler_nocheck(einfo->task, SCHED_FIFO,
+							&param);
+	einfo->rt_votes++;
+	spin_unlock_irqrestore(&einfo->rt_vote_lock, flags);
+	return ret;
+}
+
+/**
+ * rx_rt_unvote() - Remove a RX thread RT vote
+ * @if_ptr:	The transport interface on which power voting is requested.
+ *
+ * Return: 0 on Success, standard error otherwise.
+ */
+static int rx_rt_unvote(struct glink_transport_if *if_ptr)
+{
+	struct edge_info *einfo;
+	struct sched_param param = { .sched_priority = 0 };
+	int ret = 0;
+	unsigned long flags;
+
+	einfo = container_of(if_ptr, struct edge_info, xprt_if);
+	spin_lock_irqsave(&einfo->rt_vote_lock, flags);
+	einfo->rt_votes--;
+	if (!einfo->rt_votes)
+		ret = sched_setscheduler_nocheck(einfo->task, SCHED_NORMAL,
+							&param);
+	spin_unlock_irqrestore(&einfo->rt_vote_lock, flags);
+	return ret;
+}
+
+/**
  * negotiate_features_v1() - determine what features of a version can be used
  * @if_ptr:	The transport for which features are negotiated for.
  * @version:	The version negotiated.
@@ -2102,6 +2181,8 @@ static void init_xprt_if(struct edge_info *einfo)
 	einfo->xprt_if.get_power_vote_ramp_time = get_power_vote_ramp_time;
 	einfo->xprt_if.power_vote = power_vote;
 	einfo->xprt_if.power_unvote = power_unvote;
+	einfo->xprt_if.rx_rt_vote = rx_rt_vote;
+	einfo->xprt_if.rx_rt_unvote = rx_rt_unvote;
 }
 
 /**
@@ -2266,12 +2347,15 @@ static int glink_smem_native_probe(struct platform_device *pdev)
 	init_waitqueue_head(&einfo->tx_blocked_queue);
 	init_kthread_work(&einfo->kwork, rx_worker);
 	init_kthread_worker(&einfo->kworker);
+	INIT_WORK(&einfo->wakeup_work, tx_wakeup_worker);
 	tasklet_init(&einfo->tasklet, rx_worker_atomic, (unsigned long)einfo);
 	einfo->read_from_fifo = read_from_fifo;
 	einfo->write_to_fifo = write_to_fifo;
 	init_srcu_struct(&einfo->use_ref);
 	spin_lock_init(&einfo->rx_lock);
 	INIT_LIST_HEAD(&einfo->deferred_cmds);
+	spin_lock_init(&einfo->rt_vote_lock);
+	einfo->rt_votes = 0;
 
 	mutex_lock(&probe_lock);
 	if (edge_infos[einfo->remote_proc_id]) {
@@ -2365,6 +2449,7 @@ request_irq_fail:
 reg_xprt_fail:
 smem_alloc_fail:
 	flush_kthread_worker(&einfo->kworker);
+	flush_work(&einfo->wakeup_work);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
 	tasklet_kill(&einfo->tasklet);
@@ -2453,6 +2538,7 @@ static int glink_rpm_native_probe(struct platform_device *pdev)
 	init_waitqueue_head(&einfo->tx_blocked_queue);
 	init_kthread_work(&einfo->kwork, rx_worker);
 	init_kthread_worker(&einfo->kworker);
+	INIT_WORK(&einfo->wakeup_work, tx_wakeup_worker);
 	tasklet_init(&einfo->tasklet, rx_worker_atomic, (unsigned long)einfo);
 	einfo->intentless = true;
 	einfo->read_from_fifo = memcpy32_fromio;
@@ -2613,6 +2699,7 @@ request_irq_fail:
 reg_xprt_fail:
 toc_init_fail:
 	flush_kthread_worker(&einfo->kworker);
+	flush_work(&einfo->wakeup_work);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
 	tasklet_kill(&einfo->tasklet);
@@ -2744,6 +2831,7 @@ static int glink_mailbox_probe(struct platform_device *pdev)
 	init_waitqueue_head(&einfo->tx_blocked_queue);
 	init_kthread_work(&einfo->kwork, rx_worker);
 	init_kthread_worker(&einfo->kworker);
+	INIT_WORK(&einfo->wakeup_work, tx_wakeup_worker);
 	tasklet_init(&einfo->tasklet, rx_worker_atomic, (unsigned long)einfo);
 	einfo->read_from_fifo = read_from_fifo;
 	einfo->write_to_fifo = write_to_fifo;
@@ -2864,6 +2952,7 @@ request_irq_fail:
 reg_xprt_fail:
 smem_alloc_fail:
 	flush_kthread_worker(&einfo->kworker);
+	flush_work(&einfo->wakeup_work);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
 	tasklet_kill(&einfo->tasklet);
