@@ -1111,7 +1111,7 @@ void msm_isp_get_avtimer_ts(
 
 int msm_isp_request_axi_stream(struct vfe_device *vfe_dev, void *arg)
 {
-	int rc = 0, i;
+	int rc = 0, i = 0;
 	uint32_t io_format = 0;
 	struct msm_vfe_axi_stream_request_cmd *stream_cfg_cmd = arg;
 	struct msm_vfe_axi_stream *stream_info;
@@ -1204,7 +1204,7 @@ done:
 
 int msm_isp_release_axi_stream(struct vfe_device *vfe_dev, void *arg)
 {
-	int rc = 0, i;
+	int rc = 0, i = 0;
 	struct msm_vfe_axi_stream_release_cmd *stream_release_cmd = arg;
 	struct msm_vfe_axi_shared_data *axi_data = &vfe_dev->axi_data;
 	struct msm_vfe_axi_stream *stream_info;
@@ -1656,7 +1656,7 @@ static int msm_isp_cfg_ping_pong_address(struct vfe_device *vfe_dev,
 	uint32_t stream_idx = HANDLE_TO_IDX(stream_info->stream_handle);
 	uint32_t buffer_size_byte = 0;
 	int32_t word_per_line = 0;
-	dma_addr_t paddr;
+	dma_addr_t paddr = 0;
 	struct dual_vfe_resource *dual_vfe_res = NULL;
 	uint32_t vfe_id = 0;
 	unsigned long flags = 0;
@@ -1725,7 +1725,9 @@ static int msm_isp_cfg_ping_pong_address(struct vfe_device *vfe_dev,
 
 		if (dual_vfe_res) {
 			for (vfe_id = 0; vfe_id < MAX_VFE; vfe_id++) {
-				if (vfe_id != vfe_dev->pdev->id)
+				bool lock = vfe_id != vfe_dev->pdev->id;
+
+				if (lock)
 					spin_lock_irqsave(
 						&dual_vfe_res->
 						axi_data[vfe_id]->
@@ -1757,7 +1759,7 @@ static int msm_isp_cfg_ping_pong_address(struct vfe_device *vfe_dev,
 						buf[!pingpong_bit] =
 						buf;
 				}
-				if (vfe_id != vfe_dev->pdev->id)
+				if (lock)
 					spin_unlock_irqrestore(
 						&dual_vfe_res->
 						axi_data[vfe_id]->

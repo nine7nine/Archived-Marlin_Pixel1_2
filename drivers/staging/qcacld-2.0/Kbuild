@@ -1551,9 +1551,13 @@ KBUILD_CPPFLAGS += $(CDEFINES)
 # is disabling the maybe-uninitialized warning.  Re-enable it for the
 # WLAN driver.  Note that we must use EXTRA_CFLAGS here so that it
 # will override the kernel settings.
-ifeq ($(call cc-option-yn, -Wmaybe-uninitialized),y)
-EXTRA_CFLAGS += -Wmaybe-uninitialized
-endif
+
+# ifeq ($(call cc-option-yn, -Wmaybe-uninitialized),y)
+# EXTRA_CFLAGS += -Wmaybe-uninitialized
+# endif
+
+EXTRA_CFLAGS += -Wno-unused-function -Wno-unused-variable
+
 
 # If the module name is not "wlan", then the define MULTI_IF_NAME to be the
 # same a the QCA CHIP name. The host driver will then append MULTI_IF_NAME to

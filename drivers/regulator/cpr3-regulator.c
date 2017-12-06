@@ -1506,10 +1506,10 @@ static int cpr3_regulator_init_ctrl(struct cpr3_controller *ctrl)
 
 	if (ctrl->ctrl_type == CPR_CTRL_TYPE_CPR4) {
 		rc = cpr3_regulator_init_cpr4(ctrl);
-		if (rc) {
-			cpr3_err(ctrl, "CPR4-specific controller initialization failed, rc=%d\n",
-				rc);
-			return rc;
+	if (rc) {
+		cpr3_err(ctrl, "CPR4-specific controller initialization failed, rc=%d\n",
+			rc);
+		return rc;
 		}
 	} else if (ctrl->ctrl_type == CPR_CTRL_TYPE_CPRH) {
 		rc = cpr3_regulator_init_cprh(ctrl);
@@ -2920,7 +2920,8 @@ static int _cpr3_regulator_update_ctrl_state(struct cpr3_controller *ctrl)
 	struct cpr4_sdelta *sdelta;
 	bool valid = false;
 	bool thread_valid;
-	int i, j, rc, new_volt, vdd_volt, dynamic_floor_volt, last_corner_volt = 0;
+	int i, j, rc;
+	int new_volt, vdd_volt, dynamic_floor_volt, last_corner_volt = 0;
 	u32 reg_last_measurement = 0, sdelta_size;
 	int *sdelta_table, *boost_table;
 
@@ -6101,9 +6102,9 @@ int cpr3_regulator_unregister(struct cpr3_controller *ctrl)
 
 	if (ctrl->ctrl_type == CPR_CTRL_TYPE_CPR4)
 		rc = cpr3_ctrl_clear_cpr4_config(ctrl);
-		if (rc)
-			cpr3_err(ctrl, "failed to clear CPR4 configuration,rc=%d\n",
-				rc);
+	if (rc)
+		cpr3_err(ctrl, "failed to clear CPR4 configuration,rc=%d\n",
+			rc);
 
 	cpr3_ctrl_loop_disable(ctrl);
 

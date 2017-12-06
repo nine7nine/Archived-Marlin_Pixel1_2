@@ -533,7 +533,7 @@ VL53L0_Error VL53L010_DataInit(VL53L0_DEV Dev)
 		/* read device info */
 		VL53L010_SETDEVICESPECIFICPARAMETER(Dev, ReadDataFromDeviceDone, 0);
 
-		Status = VL53L010_get_info_from_device(Dev);
+    Status = VL53L010_get_info_from_device(Dev);
     }
 
 	/* Set Default static parameters */
@@ -616,9 +616,9 @@ VL53L0_Error VL53L010_StaticInit(VL53L0_DEV Dev)
         Status = VL53L0_WrByte(Dev, 0x88, 0x00);
 
 	/* this function do nothing if it has been called before */
-	Status = VL53L010_get_info_from_device(Dev);
+    Status = VL53L010_get_info_from_device(Dev);
 
-	if (Status == VL53L0_ERROR_NONE) {
+    if (Status == VL53L0_ERROR_NONE) {
         Revision = VL53L010_GETDEVICESPECIFICPARAMETER(Dev, Revision);
     }
 

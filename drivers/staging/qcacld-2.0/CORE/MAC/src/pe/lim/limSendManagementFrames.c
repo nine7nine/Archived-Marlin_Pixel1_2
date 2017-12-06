@@ -5123,7 +5123,7 @@ tSirRetStatus limSendAddBAReq( tpAniSirGlobal pMac,
   else
     return eSIR_SUCCESS;
 
-returnAfterError:
+  returnAfterError:
 
   // Release buffer, if allocated
   if( NULL != pAddBAReqBuffer )
@@ -5332,16 +5332,16 @@ tSirRetStatus limSendAddBARsp( tpAniSirGlobal pMac,
    else
       return eSIR_SUCCESS;
 
-      returnAfterError:
+   returnAfterError:
 
-      // Release buffer, if allocated
-      if( NULL != pAddBARspBuffer )
-        palPktFree( pMac->hHdd,
-            HAL_TXRX_FRM_802_11_MGMT,
-            (void *) pAddBARspBuffer,
-            (void *) pPacket );
+   // Release buffer, if allocated
+   if( NULL != pAddBARspBuffer )
+     palPktFree( pMac->hHdd,
+         HAL_TXRX_FRM_802_11_MGMT,
+         (void *) pAddBARspBuffer,
+         (void *) pPacket );
 
-      return statusCode;
+   return statusCode;
 }
 
 /**
@@ -5515,16 +5515,16 @@ tSirRetStatus limSendDelBAInd( tpAniSirGlobal pMac,
     else
       return eSIR_SUCCESS;
 
-      returnAfterError:
+    returnAfterError:
 
-      // Release buffer, if allocated
-      if( NULL != pDelBAIndBuffer )
-        palPktFree( pMac->hHdd,
-            HAL_TXRX_FRM_802_11_MGMT,
-            (void *) pDelBAIndBuffer,
-            (void *) pPacket );
+    // Release buffer, if allocated
+    if( NULL != pDelBAIndBuffer )
+      palPktFree( pMac->hHdd,
+          HAL_TXRX_FRM_802_11_MGMT,
+          (void *) pDelBAIndBuffer,
+          (void *) pPacket );
 
-      return statusCode;
+    return statusCode;
 }
 
 #if defined WLAN_FEATURE_VOWIFI
@@ -5686,7 +5686,7 @@ limSendNeighborReportRequestFrame(tpAniSirGlobal        pMac,
    else
       return eSIR_SUCCESS;
 
-returnAfterError:
+   returnAfterError:
    palPktFree( pMac->hHdd, HAL_TXRX_FRM_802_11_MGMT, ( void* ) pFrame, ( void* ) pPacket );
 
    return statusCode;
@@ -5859,7 +5859,7 @@ limSendLinkReportActionFrame(tpAniSirGlobal        pMac,
     else
        return eSIR_SUCCESS;
 
-returnAfterError:
+    returnAfterError:
     palPktFree( pMac->hHdd, HAL_TXRX_FRM_802_11_MGMT, ( void* ) pFrame, ( void* ) pPacket );
 
     return statusCode;

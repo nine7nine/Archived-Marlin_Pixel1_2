@@ -341,7 +341,7 @@ void get_node_info(struct f2fs_sb_info *sbi, nid_t nid, struct node_info *ni)
 	struct curseg_info *curseg = CURSEG_I(sbi, CURSEG_HOT_DATA);
 	struct f2fs_summary_block *sum = curseg->sum_blk;
 	nid_t start_nid = START_NID(nid);
-	struct f2fs_nat_block *nat_blk;
+	struct f2fs_nat_block *nat_blk =NULL;
 	struct page *page = NULL;
 	struct f2fs_nat_entry ne;
 	struct nat_entry *e;

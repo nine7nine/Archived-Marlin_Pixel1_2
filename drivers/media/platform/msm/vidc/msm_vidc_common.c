@@ -773,7 +773,7 @@ static void handle_session_release_buf_done(enum hal_command_response cmd,
 	void *data)
 {
 	struct msm_vidc_cb_cmd_done *response = data;
-	struct msm_vidc_inst *inst;
+	struct msm_vidc_inst *inst = NULL;
 	struct internal_buf *buf;
 	struct list_head *ptr, *next;
 	struct hal_buffer_info *buffer;
@@ -3440,6 +3440,13 @@ int msm_vidc_comm_cmd(void *instance, union msm_v4l2_cmd *cmd)
 		u32 *ptr = NULL;
 		struct hal_buffer_requirements *output_buf;
 
+		if (inst->session_type != MSM_VIDC_DECODER) {
+			dprintk(VIDC_ERR,
+				"Session type is not MSM_VIDC_DECODER\n");
+			rc = -EINVAL;
+			break;
+		}
+
 		rc = msm_comm_try_get_bufreqs(inst);
 		if (rc) {
 			dprintk(VIDC_ERR,
@@ -3691,7 +3698,7 @@ int msm_comm_qbuf(struct msm_vidc_inst *inst, struct vb2_buffer *vb)
 	 * Don't queue if:
 	 * 1) Hardware isn't ready (that's simple)
 	 */
-	defer = defer ?: inst->state != MSM_VIDC_START_DONE;
+	defer = defer ?1: inst->state != MSM_VIDC_START_DONE;
 
 	/*
 	 * 2) The client explicitly tells us not to because it wants this

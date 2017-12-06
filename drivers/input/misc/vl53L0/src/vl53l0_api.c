@@ -453,12 +453,12 @@ VL53L0_Error VL53L0_DataInit(VL53L0_DEV Dev)
         Status = VL53L0_SetLimitCheckEnable(Dev,
                 VL53L0_CHECKENABLE_RANGE_IGNORE_THRESHOLD, 0);
 
-	if (Status == VL53L0_ERROR_NONE)
-		Status = VL53L0_SetLimitCheckEnable(Dev,
-			VL53L0_CHECKENABLE_SIGNAL_RATE_MSRC, 0);
+    if (Status == VL53L0_ERROR_NONE)
+	Status = VL53L0_SetLimitCheckEnable(Dev,
+		VL53L0_CHECKENABLE_SIGNAL_RATE_MSRC, 0);
 
-	if (Status == VL53L0_ERROR_NONE)
-		Status = VL53L0_SetLimitCheckEnable(Dev,
+    if (Status == VL53L0_ERROR_NONE)
+	Status = VL53L0_SetLimitCheckEnable(Dev,
 			VL53L0_CHECKENABLE_SIGNAL_RATE_PRE_RANGE, 0);
 
     /* Limit default values */
@@ -627,8 +627,8 @@ VL53L0_Error VL53L0_StaticInit(VL53L0_DEV Dev)
 
     if (Status == VL53L0_ERROR_NONE) {
         Status = VL53L0_GetFractionEnable(Dev, &tempbyte);
-        if (Status == VL53L0_ERROR_NONE)
-            PALDevDataSet(Dev, RangeFractionalEnable, tempbyte);
+    if (Status == VL53L0_ERROR_NONE)
+        PALDevDataSet(Dev, RangeFractionalEnable, tempbyte);
 
     }
 
@@ -640,8 +640,8 @@ VL53L0_Error VL53L0_StaticInit(VL53L0_DEV Dev)
     if (Status == VL53L0_ERROR_NONE) {
         Status = VL53L0_RdByte(Dev,
                 VL53L0_REG_SYSTEM_SEQUENCE_CONFIG, &tempbyte);
-        if (Status == VL53L0_ERROR_NONE)
-            PALDevDataSet(Dev, SequenceConfig, tempbyte);
+    if (Status == VL53L0_ERROR_NONE)
+        PALDevDataSet(Dev, SequenceConfig, tempbyte);
 
     }
 
