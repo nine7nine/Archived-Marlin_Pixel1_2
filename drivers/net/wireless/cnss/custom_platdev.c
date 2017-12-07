@@ -38,7 +38,7 @@
 #define CALIBRATION_DATA_PATH "/calibration_data"
 #define WIFI_FLASH_DATA "wifi_eeprom"
 
-static int randomize_mac = 1;
+static int randomize_mac = 0;
 
 static struct ctl_table randomize_mac_table[] =
 {
