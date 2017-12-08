@@ -7,6 +7,7 @@
 
 #include <linux/interrupt.h>
 #include <linux/slab.h>
+#include <linux/irq_work.h>
 #include <linux/hrtimer.h>
 
 #include "walt.h"
@@ -83,7 +84,7 @@ void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq)
 	rt_rq->rt_nr_migratory = 0;
 	rt_rq->overloaded = 0;
 	plist_head_init(&rt_rq->pushable_tasks);
-#endif
+#endif /* CONFIG_SMP */
 	/* We start is dequeued state, because no RT tasks are queued */
 	rt_rq->rt_queued = 0;
 
@@ -2055,6 +2056,170 @@ static void push_rt_tasks(struct rq *rq)
 		;
 }
 
+#ifdef HAVE_RT_PUSH_IPI
+
+/*
+ * When a high priority task schedules out from a CPU and a lower priority
+ * task is scheduled in, a check is made to see if there's any RT tasks
+ * on other CPUs that are waiting to run because a higher priority RT task
+ * is currently running on its CPU. In this case, the CPU with multiple RT
+ * tasks queued on it (overloaded) needs to be notified that a CPU has opened
+ * up that may be able to run one of its non-running queued RT tasks.
+ *
+ * All CPUs with overloaded RT tasks need to be notified as there is currently
+ * no way to know which of these CPUs have the highest priority task waiting
+ * to run. Instead of trying to take a spinlock on each of these CPUs,
+ * which has shown to cause large latency when done on machines with many
+ * CPUs, sending an IPI to the CPUs to have them push off the overloaded
+ * RT tasks waiting to run.
+ *
+ * Just sending an IPI to each of the CPUs is also an issue, as on large
+ * count CPU machines, this can cause an IPI storm on a CPU, especially
+ * if its the only CPU with multiple RT tasks queued, and a large number
+ * of CPUs scheduling a lower priority task at the same time.
+ *
+ * Each root domain has its own irq work function that can iterate over
+ * all CPUs with RT overloaded tasks. Since all CPUs with overloaded RT
+ * tassk must be checked if there's one or many CPUs that are lowering
+ * their priority, there's a single irq work iterator that will try to
+ * push off RT tasks that are waiting to run.
+ *
+ * When a CPU schedules a lower priority task, it will kick off the
+ * irq work iterator that will jump to each CPU with overloaded RT tasks.
+ * As it only takes the first CPU that schedules a lower priority task
+ * to start the process, the rto_start variable is incremented and if
+ * the atomic result is one, then that CPU will try to take the rto_lock.
+ * This prevents high contention on the lock as the process handles all
+ * CPUs scheduling lower priority tasks.
+ *
+ * All CPUs that are scheduling a lower priority task will increment the
+ * rt_loop_next variable. This will make sure that the irq work iterator
+ * checks all RT overloaded CPUs whenever a CPU schedules a new lower
+ * priority task, even if the iterator is in the middle of a scan. Incrementing
+ * the rt_loop_next will cause the iterator to perform another scan.
+ *
+ */
+static int rto_next_cpu(struct rq *rq)
+{
+	struct root_domain *rd = rq->rd;
+	int next;
+	int cpu;
+
+	/*
+	 * When starting the IPI RT pushing, the rto_cpu is set to -1,
+	 * rt_next_cpu() will simply return the first CPU found in
+	 * the rto_mask.
+	 *
+	 * If rto_next_cpu() is called with rto_cpu is a valid cpu, it
+	 * will return the next CPU found in the rto_mask.
+	 *
+	 * If there are no more CPUs left in the rto_mask, then a check is made
+	 * against rto_loop and rto_loop_next. rto_loop is only updated with
+	 * the rto_lock held, but any CPU may increment the rto_loop_next
+	 * without any locking.
+	 */
+	for (;;) {
+
+		/* When rto_cpu is -1 this acts like cpumask_first() */
+		cpu = cpumask_next(rd->rto_cpu, rd->rto_mask);
+
+		rd->rto_cpu = cpu;
+
+		if (cpu < nr_cpu_ids)
+			return cpu;
+
+		rd->rto_cpu = -1;
+
+		/*
+		 * ACQUIRE ensures we see the @rto_mask changes
+		 * made prior to the @next value observed.
+		 *
+		 * Matches WMB in rt_set_overload().
+		 */
+		next = atomic_read_acquire(&rd->rto_loop_next);
+
+		if (rd->rto_loop == next)
+			break;
+
+		rd->rto_loop = next;
+	}
+
+	return -1;
+}
+
+static inline bool rto_start_trylock(atomic_t *v)
+{
+	return !atomic_cmpxchg_acquire(v, 0, 1);
+}
+
+static inline void rto_start_unlock(atomic_t *v)
+{
+	atomic_set_release(v, 0);
+}
+
+static void tell_cpu_to_push(struct rq *rq)
+{
+	int cpu = -1;
+
+	/* Keep the loop going if the IPI is currently active */
+	atomic_inc(&rq->rd->rto_loop_next);
+
+	/* Only one CPU can initiate a loop at a time */
+	if (!rto_start_trylock(&rq->rd->rto_loop_start))
+		return;
+
+	raw_spin_lock(&rq->rd->rto_lock);
+
+	/*
+	 * The rto_cpu is updated under the lock, if it has a valid cpu
+	 * then the IPI is still running and will continue due to the
+	 * update to loop_next, and nothing needs to be done here.
+	 * Otherwise it is finishing up and an ipi needs to be sent.
+	 */
+	if (rq->rd->rto_cpu < 0)
+		cpu = rto_next_cpu(rq);
+
+	raw_spin_unlock(&rq->rd->rto_lock);
+
+	rto_start_unlock(&rq->rd->rto_loop_start);
+
+	if (cpu >= 0)
+		irq_work_queue_on(&rq->rd->rto_push_work, cpu);
+}
+
+/* Called from hardirq context */
+void rto_push_irq_work_func(struct irq_work *work)
+{
+	struct rq *rq;
+	int cpu;
+
+	rq = this_rq();
+
+	/*
+	 * We do not need to grab the lock to check for has_pushable_tasks.
+	 * When it gets updated, a check is made if a push is possible.
+	 */
+	if (has_pushable_tasks(rq)) {
+		raw_spin_lock(&rq->lock);
+		push_rt_tasks(rq);
+		raw_spin_unlock(&rq->lock);
+	}
+
+	raw_spin_lock(&rq->rd->rto_lock);
+
+	/* Pass the IPI to the next rt overloaded queue */
+	cpu = rto_next_cpu(rq);
+
+	raw_spin_unlock(&rq->rd->rto_lock);
+
+	if (cpu < 0)
+		return;
+
+	/* Try the next RT overloaded CPU */
+	irq_work_queue_on(&rq->rd->rto_push_work, cpu);
+}
+#endif /* HAVE_RT_PUSH_IPI */
+
 static int pull_rt_task(struct rq *this_rq)
 {
 	int this_cpu = this_rq->cpu, ret = 0, cpu;
@@ -2069,6 +2234,13 @@ static int pull_rt_task(struct rq *this_rq)
 	 * see overloaded we must also see the rto_mask bit.
 	 */
 	smp_rmb();
+
+#ifdef HAVE_RT_PUSH_IPI
+	if (sched_feat(RT_PUSH_IPI)) {
+		tell_cpu_to_push(this_rq);
+		return 0;
+	}
+#endif
 
 	for_each_cpu(cpu, this_rq->rd->rto_mask) {
 		if (this_cpu == cpu)
