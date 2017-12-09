@@ -146,12 +146,7 @@ enum {
     HTC_STATS_CATEGORY_FULL_LOW,
 };
 
-#define BATT_DEBUG(x...) do { \
-	if (g_flag_enable_batt_debug_log) \
-		printk(KERN_INFO"[BATT] " x); \
-	else	\
-		printk(KERN_DEBUG"[BATT] " x); \
-} while (0)
+#define BATT_DEBUG(x...)
 
 static bool need_to_check_cable(int type) {
 	return ((type == POWER_SUPPLY_TYPE_USB_DCP) ||
@@ -2063,7 +2058,6 @@ void htc_stats_update_charging_statistics(int latest, int prev)
     char time_str[25];
     long dischg_time = 0L;
     long chg_time = 0L;
-    char debug[10] = "[debug]";
     bool debug_flag = false;
 
     if (debug_flag) {
