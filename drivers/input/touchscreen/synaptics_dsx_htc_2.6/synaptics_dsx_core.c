@@ -46,9 +46,6 @@
 #ifdef KERNEL_ABOVE_2_6_38
 #include <linux/input/mt.h>
 #endif
-#ifdef CONFIG_WAKE_GESTURES
-#include <linux/wake_gestures.h>
-#endif
 
 #define INPUT_PHYS_NAME "synaptics_dsx/touch_input"
 #define STYLUS_PHYS_NAME "synaptics_dsx/stylus"
@@ -135,16 +132,6 @@
 #define FREQ_MASK 0x7F
 
 static DECLARE_WAIT_QUEUE_HEAD(syn_data_ready_wq);
-#endif
-
-#ifdef CONFIG_WAKE_GESTURES
-struct synaptics_rmi4_data *gl_rmi4_data;
-
-bool scr_suspended(void)
-{
-	struct synaptics_rmi4_data *rmi4_data = gl_rmi4_data;
-	return rmi4_data->suspend;
-}
 #endif
 
 static int synaptics_rmi4_check_status(struct synaptics_rmi4_data *rmi4_data,
@@ -1103,7 +1090,7 @@ static ssize_t synaptics_rmi4_wake_gesture_store(struct device *dev,
 	input = input > 0 ? 1 : 0;
 
 	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture)
-		rmi4_data->enable_wakeup_gesture = input;
+		rmi4_data->enable_wakeup_gesture = WAKEUP_GESTURE && input;
 
 	return count;
 }
@@ -1368,11 +1355,7 @@ static const struct attribute_group attr_group = {
 	.attrs = htc_attrs,
 };
 
-#ifdef CONFIG_WAKE_GESTURES
-struct kobject *android_touch_kobj;
-#else
 static struct kobject *android_touch_kobj;
-#endif
 static int synaptics_rmi4_sysfs_init(struct synaptics_rmi4_data *rmi4_data, bool enable)
 {
 	if (enable) {
@@ -1868,11 +1851,6 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			x = rmi4_data->sensor_max_x - x;
 		if (rmi4_data->hw_if->board_data->y_flip)
 			y = rmi4_data->sensor_max_y - y;
-
-#ifdef CONFIG_WAKE_GESTURES
-		if (rmi4_data->suspend && wg_switch)
-		        x += 5000;
-#endif
 
 		switch (finger_status) {
 		case F12_FINGER_STATUS:
@@ -5458,10 +5436,6 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 
 	rmi4_data->irq_enabled = true;
 
-#ifdef CONFIG_WAKE_GESTURES
-	gl_rmi4_data = rmi4_data;
-#endif
-
 	if (rmi4_data->enable_wakeup_gesture)
 		irq_set_irq_wake(rmi4_data->irq, 1);
 #endif
@@ -5938,12 +5912,6 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	if (rmi4_data->stay_awake)
 		return 0;
 
-#ifdef CONFIG_WAKE_GESTURES
-	if (wg_switch) {
-		enable_irq_wake(rmi4_data->irq);
-		goto exit;
-	}
-#endif
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, true);
 		enable_irq_wake(rmi4_data->irq);
@@ -5963,14 +5931,6 @@ exit:
 				exp_fhandler->exp_fn->suspend(rmi4_data);
 	}
 	mutex_unlock(&exp_data.mutex);
-
-#ifdef CONFIG_WAKE_GESTURES
-	if (wg_switch) {
-		rmi4_data->suspend = true;
-
-		return 0;
-	}
-#endif
 
 #ifdef USE_I2C_SWITCH
 	gpio_set_value(rmi4_data->hw_if->board_data->switch_gpio, 1);
@@ -5995,28 +5955,15 @@ static int synaptics_rmi4_resume(struct device *dev)
 	if (rmi4_data->stay_awake)
 		return 0;
 
-#ifdef CONFIG_WAKE_GESTURES
-	if (!wg_switch) {
-#endif
 #ifdef USE_I2C_SWITCH
 	gpio_set_value(rmi4_data->hw_if->board_data->switch_gpio, 0);
 	dev_dbg(rmi4_data->pdev->dev.parent,
 			"%s: Switch I2C mux to AP\n",
 			__func__);
 #endif // USE_I2C_SWITCH
-#ifdef CONFIG_WAKE_GESTURES
-	}
-#endif
 
 	synaptics_rmi4_free_fingers(rmi4_data);
 
-#ifdef CONFIG_WAKE_GESTURES
-	if (wg_switch) {
-		disable_irq_wake(rmi4_data->irq);
-		synaptics_rmi4_force_cal(rmi4_data);
-		goto exit;
-	}
-#endif
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, false);
 		disable_irq_wake(rmi4_data->irq);
@@ -6051,13 +5998,6 @@ exit:
 	mutex_unlock(&exp_data.mutex);
 
 	rmi4_data->suspend = false;
-
-#ifdef CONFIG_WAKE_GESTURES
-	if (wg_changed) {
-		wg_switch = wg_switch_temp;
-		wg_changed = false;
-	}
-#endif
 
 	return 0;
 }
