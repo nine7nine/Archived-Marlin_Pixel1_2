@@ -96,6 +96,7 @@ struct tvec_base boot_tvec_bases;
 EXPORT_SYMBOL(boot_tvec_bases);
 static DEFINE_PER_CPU(struct tvec_base *, tvec_bases) = &boot_tvec_bases;
 #ifdef CONFIG_SMP
+EXPORT_SYMBOL(tvec_base_deferrable);
 struct tvec_base tvec_base_deferrable;
 static atomic_t deferrable_pending;
 #endif
