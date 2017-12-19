@@ -2305,8 +2305,6 @@ account_entity_dequeue(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 # ifdef CONFIG_SMP
-
-
 static long calc_cfs_shares(struct cfs_rq *cfs_rq, struct task_group *tg)
 {
 	long tg_weight, load, shares;
@@ -2361,8 +2359,8 @@ static inline int throttled_hierarchy(struct cfs_rq *cfs_rq);
 
 static void update_cfs_shares(struct sched_entity *se)
 {
-	struct task_group *tg;
 	struct cfs_rq *cfs_rq = group_cfs_rq(se);
+	struct task_group *tg;
 	long shares;
 
 	if (!cfs_rq)
