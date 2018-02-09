@@ -817,7 +817,6 @@ struct file {
 		struct rcu_head 	fu_rcuhead;
 	} f_u;
 	struct path		f_path;
-#define f_dentry	f_path.dentry
 	struct inode		*f_inode;	/* cached value */
 	const struct file_operations	*f_op;
 
@@ -1506,7 +1505,10 @@ int fiemap_check_flags(struct fiemap_extent_info *fieinfo, u32 fs_flags);
  * This allows the kernel to read directories into kernel space or
  * to have different dirent layouts depending on the binary type.
  */
-typedef int (*filldir_t)(void *, const char *, int, loff_t, u64, unsigned);
+struct dir_context;
+typedef int (*filldir_t)(struct dir_context *, const char *, int, loff_t, u64,
+			 unsigned);
+
 struct dir_context {
 	const filldir_t actor;
 	loff_t pos;
@@ -1552,7 +1554,7 @@ struct file_operations {
 	int (*setlease)(struct file *, long, struct file_lock **, void **);
 	long (*fallocate)(struct file *file, int mode, loff_t offset,
 			  loff_t len);
-	int (*show_fdinfo)(struct seq_file *m, struct file *f);
+	void (*show_fdinfo)(struct seq_file *m, struct file *f);
 };
 
 struct inode_operations {
@@ -2200,7 +2202,6 @@ static inline int sb_is_blkdev_sb(struct super_block *sb)
 extern int sync_filesystem(struct super_block *);
 extern const struct file_operations def_blk_fops;
 extern const struct file_operations def_chr_fops;
-extern const struct file_operations bad_sock_fops;
 #ifdef CONFIG_BLOCK
 extern int ioctl_by_bdev(struct block_device *, unsigned, unsigned long);
 extern int blkdev_ioctl(struct block_device *, fmode_t, unsigned, unsigned long);
@@ -2861,6 +2862,11 @@ static inline void inode_has_no_xattr(struct inode *inode)
 {
 	if (!is_sxid(inode->i_mode) && (inode->i_sb->s_flags & MS_NOSEC))
 		inode->i_flags |= S_NOSEC;
+}
+
+static inline bool is_root_inode(struct inode *inode)
+{
+	return inode == inode->i_sb->s_root->d_inode;
 }
 
 static inline bool dir_emit(struct dir_context *ctx,

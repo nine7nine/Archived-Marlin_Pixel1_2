@@ -998,8 +998,8 @@ static int mdss_mdp_get_img(struct msmfb_data *img,
 		}
 		data->srcp_f = f;
 
-		if (MAJOR(f.file->f_dentry->d_inode->i_rdev) == FB_MAJOR) {
-			fb_num = MINOR(f.file->f_dentry->d_inode->i_rdev);
+		if (MAJOR(f.file->f_path.dentry->d_inode->i_rdev) == FB_MAJOR) {
+			fb_num = MINOR(f.file->f_path.dentry->d_inode->i_rdev);
 			ret = mdss_fb_get_phys_info(start, len, fb_num);
 			if (ret)
 				pr_err("mdss_fb_get_phys_info() failed\n");

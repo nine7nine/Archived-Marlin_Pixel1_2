@@ -151,6 +151,11 @@ extern const struct file_operations pipefifo_fops;
 extern void sb_pin_kill(struct super_block *sb);
 extern void mnt_pin_kill(struct mount *m);
 
+/*
+ * fs/nsfs.c
+ */
+extern struct dentry_operations ns_dentry_operations;
+
 #ifdef CONFIG_FILE_TABLE_DEBUG
 void global_filetable_print_warning_once(void);
 void global_filetable_add(struct file *filp);
