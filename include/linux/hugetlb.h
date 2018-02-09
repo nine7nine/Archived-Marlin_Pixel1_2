@@ -86,7 +86,7 @@ void free_huge_page(struct page *page);
 pte_t *huge_pmd_share(struct mm_struct *mm, unsigned long addr, pud_t *pud);
 #endif
 
-extern unsigned long hugepages_treat_as_movable;
+extern int hugepages_treat_as_movable;
 extern int sysctl_hugetlb_shm_group;
 extern struct list_head huge_boot_pages;
 
@@ -311,7 +311,8 @@ static inline struct hstate *hstate_sizelog(int page_size_log)
 {
 	if (!page_size_log)
 		return &default_hstate;
-	return size_to_hstate(1 << page_size_log);
+
+	return size_to_hstate(1UL << page_size_log);
 }
 
 static inline struct hstate *hstate_vma(struct vm_area_struct *vma)
@@ -424,6 +425,17 @@ static inline spinlock_t *huge_pte_lockptr(struct hstate *h,
 #define hugepages_supported() (HPAGE_SHIFT != 0)
 #endif
 
+void hugetlb_report_usage(struct seq_file *m, struct mm_struct *mm);
+
+static inline void hugetlb_count_add(long l, struct mm_struct *mm)
+{
+	atomic_long_add(l, &mm->hugetlb_usage);
+}
+
+static inline void hugetlb_count_sub(long l, struct mm_struct *mm)
+{
+	atomic_long_sub(l, &mm->hugetlb_usage);
+}
 #else	/* CONFIG_HUGETLB_PAGE */
 struct hstate {};
 #define alloc_huge_page_node(h, nid) NULL
@@ -458,6 +470,14 @@ static inline spinlock_t *huge_pte_lockptr(struct hstate *h,
 					   struct mm_struct *mm, pte_t *pte)
 {
 	return &mm->page_table_lock;
+}
+
+static inline void hugetlb_report_usage(struct seq_file *f, struct mm_struct *m)
+{
+}
+
+static inline void hugetlb_count_sub(long l, struct mm_struct *mm)
+{
 }
 #endif	/* CONFIG_HUGETLB_PAGE */
 

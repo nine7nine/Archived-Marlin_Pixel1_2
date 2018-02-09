@@ -22,10 +22,10 @@
  * cleancache_ops is set by cleancache_ops_register to contain the pointers
  * to the cleancache "backend" implementation functions.
  */
-static struct cleancache_ops *cleancache_ops __read_mostly;
+static const struct cleancache_ops *cleancache_ops __read_mostly;
 
 /*
- * Counters available via /sys/kernel/debug/frontswap (if debugfs is
+ * Counters available via /sys/kernel/debug/cleancache (if debugfs is
  * properly configured.  These are for information only so are not protected
  * against increment races.
  */
@@ -106,15 +106,17 @@ static DEFINE_MUTEX(poolid_mutex);
  */
 
 /*
- * Register operations for cleancache, returning previous thus allowing
- * detection of multiple backends and possible nesting.
+ * Register operations for cleancache. Returns 0 on success.
  */
-struct cleancache_ops *cleancache_register_ops(struct cleancache_ops *ops)
+int cleancache_register_ops(const struct cleancache_ops *ops)
 {
-	struct cleancache_ops *old = cleancache_ops;
 	int i;
 
 	mutex_lock(&poolid_mutex);
+	if (cleancache_ops) {
+		mutex_unlock(&poolid_mutex);
+		return -EBUSY;
+	}
 	for (i = 0; i < MAX_INITIALIZABLE_FS; i++) {
 		if (fs_poolid_map[i] == FS_NO_BACKEND)
 			fs_poolid_map[i] = ops->init_fs(PAGE_SIZE);
@@ -130,7 +132,7 @@ struct cleancache_ops *cleancache_register_ops(struct cleancache_ops *ops)
 	barrier();
 	cleancache_ops = ops;
 	mutex_unlock(&poolid_mutex);
-	return old;
+	return 0;
 }
 EXPORT_SYMBOL(cleancache_register_ops);
 

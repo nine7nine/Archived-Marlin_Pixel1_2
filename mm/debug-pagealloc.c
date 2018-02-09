@@ -106,8 +106,11 @@ static void unpoison_pages(struct page *page, int n)
 		unpoison_page(page + i);
 }
 
-void kernel_map_pages(struct page *page, int numpages, int enable)
+void __kernel_map_pages(struct page *page, int numpages, int enable)
 {
+	if (!page_poisoning_enabled)
+		return;
+
 	if (enable)
 		unpoison_pages(page, numpages);
 	else

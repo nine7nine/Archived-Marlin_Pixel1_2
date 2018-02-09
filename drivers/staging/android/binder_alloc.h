@@ -107,7 +107,6 @@ struct binder_lru_page {
  */
 struct binder_alloc {
 	struct rt_mutex mutex;
-	struct task_struct *tsk;
 	struct vm_area_struct *vma;
 	struct mm_struct *vma_vm_mm;
 	void *buffer;

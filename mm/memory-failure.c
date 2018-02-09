@@ -233,29 +233,17 @@ void shake_page(struct page *p, int access)
 		lru_add_drain_all();
 		if (PageLRU(p))
 			return;
-		drain_all_pages();
+		drain_all_pages(page_zone(p));
 		if (PageLRU(p) || is_free_buddy_page(p))
 			return;
 	}
 
 	/*
-	 * Only call shrink_slab here (which would also shrink other caches) if
-	 * access is not potentially fatal.
+	 * Only call shrink_node_slabs here (which would also shrink
+	 * other caches) if access is not potentially fatal.
 	 */
-	if (access) {
-		int nr;
-		int nid = page_to_nid(p);
-		do {
-			struct shrink_control shrink = {
-				.gfp_mask = GFP_KERNEL,
-			};
-			node_set(nid, shrink.nodes_to_scan);
-
-			nr = shrink_slab(&shrink, 1000, 1000);
-			if (page_count(p) == 1)
-				break;
-		} while (nr > 10);
-	}
+	if (access)
+		drop_slab_node(page_to_nid(p));
 }
 EXPORT_SYMBOL_GPL(shake_page);
 
@@ -1676,7 +1664,7 @@ static int __soft_offline_page(struct page *page, int flags)
 			 * setting PG_hwpoison.
 			 */
 			if (!is_free_buddy_page(page))
-				drain_all_pages();
+				drain_all_pages(page_zone(page));
 			SetPageHWPoison(page);
 			if (!is_free_buddy_page(page))
 				pr_info("soft offline: %#lx: page leaked\n",

@@ -15,10 +15,6 @@
 #define KMSG_COMPONENT "zram"
 #define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
 
-#ifdef CONFIG_ZRAM_DEBUG
-#define DEBUG
-#endif
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/bio.h>
@@ -61,7 +57,7 @@ static inline void deprecated_attr_warn(const char *name)
 }
 
 #define ZRAM_ATTR_RO(name)						\
-static ssize_t name##_show(struct device *d,		\
+static ssize_t name##_show(struct device *d,				\
 				struct device_attribute *attr, char *b)	\
 {									\
 	struct zram *zram = dev_to_zram(d);				\
@@ -1243,6 +1239,7 @@ static int create_device(struct zram *zram, int device_id)
 	snprintf(zram->disk->disk_name, 16, "zram%d", device_id);
 
 	__set_bit(QUEUE_FLAG_FAST, &queue->queue_flags);
+
 	/* Actual capacity set using syfs (/sys/block/zram<id>/disksize */
 	set_capacity(zram->disk, 0);
 	/* zram devices sort of resembles non-rotational disks */
