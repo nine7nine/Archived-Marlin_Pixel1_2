@@ -493,11 +493,16 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
 
+	/* the sys_sync() call used here is racy, if an FS sync takes too long
+	 * this can lead to the kernel staing awake in the odd circumstance.
+	 * syncing FS on suspend is unnecessary, so comment out the call and  
+	 * and related tracing.
+
 	trace_suspend_resume(TPS("sync_filesystems"), 0, true);
 	printk(KERN_INFO "PM: Syncing filesystems ... ");
 	sys_sync();
-	printk("done.\n");
-	trace_suspend_resume(TPS("sync_filesystems"), 0, false);
+	printk("done.\n"); 
+	trace_suspend_resume(TPS("sync_filesystems"), 0, false); */
 
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
 	error = suspend_prepare(state);
