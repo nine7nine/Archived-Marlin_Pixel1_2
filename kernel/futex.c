@@ -23,6 +23,9 @@
  *  Copyright (C) IBM Corporation, 2009
  *  Thanks to Thomas Gleixner for conceptual design and careful reviews.
  *
+ *  Private hashed futex support by Sebastian Siewior and Thomas Gleixner
+ *  Copyright (C) Linutronix GmbH, 2016
+ *
  *  Thanks to Ben LaHaise for yelling "hashed waitqueues" loudly
  *  enough at me, Linus for the original (flawed) idea, Matthew
  *  Kirkwood for proof-of-concept implementation.
@@ -49,6 +52,7 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/jhash.h>
+#include <linux/hash.h>
 #include <linux/init.h>
 #include <linux/futex.h>
 #include <linux/mount.h>
@@ -169,6 +173,34 @@
  * the code that actually moves the futex(es) between hash buckets (requeue_futex)
  * will do the additional required waiter count housekeeping. This is done for
  * double_lock_hb() and double_unlock_hb(), respectively.
+ *
+ * For private futexes we (pre)allocate a per process hash. We check lockless
+ * whether the hash is already allocated. To access the hash later we need
+ * information about the hash properties as well. This requires barriers as
+ * follows:
+ *
+ * CPU 0					CPU 1
+ * check_hash_allocation()
+ *	if (mm->futex_hash.hash)
+ *		return;
+ *	hash = alloc_hash()
+ *	lock(&mm->futex_hash.lock);
+ *	if (!mm->futex_hash.hash) {
+ *	  mm->futex_hash.par = params;
+ *
+ *	  smp_wmb(); (A0) <-paired with-|
+ *					|
+ *	  mm->futex_hash.hash = hash;	|
+ *					|	check_hash_allocation()
+ *					|	   if (mm->futex_hash.hash)
+ *					|		return;
+ *	  unlock(&mm->futex_hash.lock);	|	get_futex_key_refs()
+ *					|
+ *					|--------- smp_mb() (B)
+ *						s = hash(f, mm->futex_hash.par);
+ *						hb = &mm->futex_hash.hash[s];
+ *
+ * So we utilize the existing smp_mb() in get_futex_key_refs().
  */
 
 #ifndef CONFIG_HAVE_FUTEX_CMPXCHG
@@ -255,6 +287,23 @@ struct futex_hash_bucket {
 	struct plist_head chain;
 } ____cacheline_aligned_in_smp;
 
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+/*
+ * Process private hash for non-shared futexes
+ */
+#define FUTEX_USE_GLOBAL_HASH		((void *) 0x03)
+
+#define FUTEX_MIN_HASH_BITS		order_base_2(4UL)
+#define FUTEX_DEF_HASH_BITS		order_base_2(8UL)
+#define FUTEX_MAX_HASH_BITS		order_base_2(256UL)
+
+unsigned int futex_default_hash_bits			= FUTEX_DEF_HASH_BITS;
+unsigned int futex_max_hash_bits			= FUTEX_MAX_HASH_BITS;
+unsigned int  __read_mostly futex_sysmax_hash_bits	= FUTEX_MAX_HASH_BITS;
+#else
+static const unsigned int futex_default_hash_bits = 0;
+#endif
+
 /*
  * The base of the bucket array and its size are always used together
  * (after initialization only in hash_futex()), so ensure that they
@@ -276,10 +325,10 @@ static struct {
 static struct {
 	struct fault_attr attr;
 
-	u32 ignore_private;
+	bool ignore_private;
 } fail_futex = {
 	.attr = FAULT_ATTR_INITIALIZER,
-	.ignore_private = 0,
+	.ignore_private = false,
 };
 
 static int __init setup_fail_futex(char *str)
@@ -373,10 +422,14 @@ static inline int hb_waiters_pending(struct futex_hash_bucket *hb)
 #endif
 }
 
-/*
- * We hash on the keys returned from get_futex_key (see below).
+/**
+ * hash_global_futex - Return the hash bucket in the global hash
+ * @key:	Pointer to the futex key for which the hash is calculated
+ *
+ * We hash on the keys returned from get_futex_key (see below) and return the
+ * corresponding hash bucket in the global hash.
  */
-static struct futex_hash_bucket *hash_futex(union futex_key *key)
+static struct futex_hash_bucket *hash_global_futex(union futex_key *key)
 {
 	u32 hash = jhash2((u32*)&key->both.word,
 			  (sizeof(key->both.word)+sizeof(key->both.ptr))/4,
@@ -384,7 +437,36 @@ static struct futex_hash_bucket *hash_futex(union futex_key *key)
 	return &futex_queues[hash & (futex_hashsize - 1)];
 }
 
-/*
+/**
+ * hash_futex - Get the hash bucket for a futex
+ *
+ * Returns either the process private or the global hash bucket which fits the
+ * key.
+ */
+static struct futex_hash_bucket *hash_futex(union futex_key *key)
+{
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+	struct mm_struct *mm = current->mm;
+	unsigned int slot;
+
+	/*
+	 * Futexes which use the per process hash have the lower bits cleared
+	 */
+	if (key->both.offset & (FUT_OFF_INODE | FUT_OFF_MMSHARED))
+		return hash_global_futex(key);
+
+	slot = hash_long(key->private.address, mm->futex_hash.hash_bits);
+	return &mm->futex_hash.hash[slot];
+#else
+	return hash_global_futex(key);
+#endif
+}
+
+/**
+ * match_futex - Check whether two futex keys are equal
+ * @key1:	Pointer to key1
+ * @key2:	Pointer to key2
+ *
  * Return 1 if two futex_keys are equal, 0 otherwise.
  */
 static inline int match_futex(union futex_key *key1, union futex_key *key2)
@@ -495,7 +577,20 @@ get_futex_key(u32 __user *uaddr, int fshared, union futex_key *key, int rw)
 	 */
 	if (!fshared) {
 		key->private.mm = mm;
+		/*
+		 * If we have a process private hash, then we store uaddr
+		 * instead of the page base address.
+		 */
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+		if (mm->futex_hash.hash != FUTEX_USE_GLOBAL_HASH) {
+			key->private.address = (unsigned long) uaddr;
+		} else {
 		key->private.address = address;
+			key->both.offset |= FUT_OFF_PRIVATE;
+		}
+#else
+		key->private.address = address;
+#endif
 		get_futex_key_refs(key);  /* implies MB (B) */
 		return 0;
 	}
@@ -681,7 +776,7 @@ static int get_futex_value_locked(u32 *dest, u32 __user *from)
 	int ret;
 
 	pagefault_disable();
-	ret = __copy_from_user_inatomic(dest, from, sizeof(u32));
+	ret = __get_user(*dest, from);
 	pagefault_enable();
 
 	return ret ? -EFAULT : 0;
@@ -977,7 +1072,7 @@ static int attach_to_pi_owner(u32 uval, union futex_key *key,
 	if (!p)
 		return -ESRCH;
 
-	if (!p->mm) {
+	if (unlikely(p->flags & PF_KTHREAD)) {
 		put_task_struct(p);
 		return -EPERM;
 	}
@@ -1203,11 +1298,14 @@ static void mark_wake_futex(struct wake_q_head *wake_q, struct futex_q *q)
 	q->lock_ptr = NULL;
 }
 
-static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this)
+static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this,
+			 struct futex_hash_bucket *hb)
 {
 	struct task_struct *new_owner;
 	struct futex_pi_state *pi_state = this->pi_state;
 	u32 uninitialized_var(curval), newval;
+	WAKE_Q(wake_q);
+	bool deboost;
 	int ret = 0;
 
 	if (!pi_state)
@@ -1272,7 +1370,19 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this)
 	raw_spin_unlock_irq(&new_owner->pi_lock);
 
 	raw_spin_unlock(&pi_state->pi_mutex.wait_lock);
-	rt_mutex_unlock(&pi_state->pi_mutex);
+
+	deboost = rt_mutex_futex_unlock(&pi_state->pi_mutex, &wake_q);
+
+	/*
+	 * First unlock HB so the waiter does not spin on it once he got woken
+	 * up. Second wake up the waiter before the priority is adjusted. If we
+	 * deboost first (and lose our higher priority), then the task might get
+	 * scheduled away before the wake up can take place.
+	 */
+	spin_unlock(&hb->lock);
+	wake_up_q(&wake_q);
+	if (deboost)
+		rt_mutex_adjust_prio(current);
 
 	return 0;
 }
@@ -2169,11 +2279,8 @@ static void futex_wait_queue_me(struct futex_hash_bucket *hb, struct futex_q *q,
 	queue_me(q, hb);
 
 	/* Arm the timer */
-	if (timeout) {
+	if (timeout)
 		hrtimer_start_expires(&timeout->timer, HRTIMER_MODE_ABS);
-		if (!hrtimer_active(&timeout->timer))
-			timeout->task = NULL;
-	}
 
 	/*
 	 * If we have been removed from the hash list, then another task
@@ -2323,7 +2430,7 @@ retry:
 	if (!abs_time)
 		goto out;
 
-	restart = &current_thread_info()->restart_block;
+	restart = &current->restart_block;
 	restart->fn = futex_wait_restart;
 	restart->futex.uaddr = uaddr;
 	restart->futex.val = val;
@@ -2525,7 +2632,13 @@ retry:
 	 */
 	match = futex_top_waiter(hb, &key);
 	if (match) {
-		ret = wake_futex_pi(uaddr, uval, match);
+		ret = wake_futex_pi(uaddr, uval, match, hb);
+		/*
+		 * In case of success wake_futex_pi dropped the hash
+		 * bucket lock.
+		 */
+		if (!ret)
+			goto out_putkey;
 		/*
 		 * The atomic access to the futex value generated a
 		 * pagefault, so retry the user-access and the wakeup:
@@ -2541,6 +2654,10 @@ retry:
 			put_futex_key(&key);
 			goto retry;
 		}
+		/*
+		 * wake_futex_pi has detected invalid state. Tell user
+		 * space.
+		 */
 		goto out_unlock;
 	}
 
@@ -2561,6 +2678,7 @@ retry:
 
 out_unlock:
 	spin_unlock(&hb->lock);
+out_putkey:
 	put_futex_key(&key);
 	return ret;
 
@@ -2670,6 +2788,7 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 {
 	struct hrtimer_sleeper timeout, *to = NULL;
 	struct rt_mutex_waiter rt_waiter;
+	struct rt_mutex *pi_mutex = NULL;
 	struct futex_hash_bucket *hb;
 	union futex_key key2 = FUTEX_KEY_INIT;
 	struct futex_q q = futex_q_init;
@@ -2753,8 +2872,6 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 		if (q.pi_state && (q.pi_state->owner != current)) {
 			spin_lock(q.lock_ptr);
 			ret = fixup_pi_state_owner(uaddr2, &q, current);
-			if (ret && rt_mutex_owner(&q.pi_state->pi_mutex) == current)
-				rt_mutex_unlock(&q.pi_state->pi_mutex);
 			/*
 			 * Drop the reference to the pi state which
 			 * the requeue_pi() code acquired for us.
@@ -2763,8 +2880,6 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 			spin_unlock(q.lock_ptr);
 		}
 	} else {
-		struct rt_mutex *pi_mutex;
-
 		/*
 		 * We have been woken up by futex_unlock_pi(), a timeout, or a
 		 * signal.  futex_unlock_pi() will not destroy the lock_ptr nor
@@ -2788,19 +2903,18 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 		if (res)
 			ret = (res < 0) ? res : 0;
 
-		/*
-		 * If fixup_pi_state_owner() faulted and was unable to handle
-		 * the fault, unlock the rt_mutex and return the fault to
-		 * userspace.
-		 */
-		if (ret && rt_mutex_owner(pi_mutex) == current)
-			rt_mutex_unlock(pi_mutex);
-
 		/* Unqueue and drop the lock. */
 		unqueue_me_pi(&q);
 	}
 
-	if (ret == -EINTR) {
+	/*
+	 * If fixup_pi_state_owner() faulted and was unable to handle the
+	 * fault, unlock the rt_mutex and return the fault to userspace.
+	 */
+	if (ret == -EFAULT) {
+		if (pi_mutex && rt_mutex_owner(pi_mutex) == current)
+			rt_mutex_unlock(pi_mutex);
+	} else if (ret == -EINTR) {
 		/*
 		 * We've already been requeued, but cannot restart by calling
 		 * futex_lock_pi() directly. We could restart this syscall, but
@@ -3043,6 +3157,114 @@ void exit_robust_list(struct task_struct *curr)
 				   curr, pip);
 }
 
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+
+void futex_mm_hash_exit(struct mm_struct *mm)
+{
+	if (mm->futex_hash.hash && mm->futex_hash.hash != FUTEX_USE_GLOBAL_HASH)
+		kfree(mm->futex_hash.hash);
+	mm->futex_hash.hash = NULL;
+}
+
+static struct futex_hash_bucket *futex_alloc_hash(unsigned int hash_bits)
+{
+	struct futex_hash_bucket *hb;
+	size_t hash_size, size;
+	int i;
+
+	hash_size = 1 << hash_bits;
+	size = hash_size * sizeof(struct futex_hash_bucket);
+	hb = kzalloc_node(size, GFP_KERNEL, numa_node_id());
+	if (!hb)
+		return NULL;
+
+	for (i = 0; i < hash_size; i++) {
+		atomic_set(&hb[i].waiters, 0);
+		plist_head_init(&hb[i].chain);
+		spin_lock_init(&hb[i].lock);
+	}
+	return hb;
+}
+
+static void futex_populate_hash(unsigned int hash_bits)
+{
+	struct mm_struct *mm = current->mm;
+	struct futex_hash_bucket *hb = NULL;
+
+	/*
+	 * We don't need an explicit smp_mb() when the hash is populated
+	 * because before we dereference mm->futex_hash.hash_bits in the hash
+	 * function we have an smp_mb() in futex_get_key_refs() already.
+	 */
+	if (mm->futex_hash.hash)
+		return;
+
+	/*
+	 * If we failed to allocate a hash on the fly, fall back to the global
+	 * hash.
+	 */
+	hb = futex_alloc_hash(hash_bits);
+	if (!hb)
+		hb = FUTEX_USE_GLOBAL_HASH;
+
+	raw_spin_lock(&mm->futex_hash.lock);
+	/* We might have raced with another task allocating the hash. */
+	if (!mm->futex_hash.hash) {
+		mm->futex_hash.hash_bits = hash_bits;
+		/*
+		 * Ensure that the above is visible before we store
+		 * the pointer.
+		 */
+		smp_wmb(); /* (A0) Pairs with (B) */
+		mm->futex_hash.hash = hb;
+		hb = NULL;
+	}
+	raw_spin_unlock(&mm->futex_hash.lock);
+	kfree(hb);
+}
+#else /* CONFIG_FUTEX_PRIVATE_HASH */
+static inline void futex_populate_hash(unsigned int hash_bits) { }
+#endif
+
+/**
+ * futex_preallocate_hash - Preallocate the process private hash
+ * @slots:	Number of slots to allocate
+ *
+ * The function will allocate the process private hash with the number of
+ * requested slots. The number is rounded to the next power of two and may not
+ * exceed the current system limit.
+ *
+ * If the hash was already allocated by either an earlier call to
+ * futex_preallocate_hash() or an earlier futex op which allocated the cache
+ * on the fly, we return the size of the active hash.
+ *
+ * Returns::	Size of the hash, if 0 then the global hash is used.
+ */
+static int futex_preallocate_hash(unsigned int slots)
+{
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+	struct mm_struct *mm = current->mm;
+	struct futex_hash_bucket *hb;
+	unsigned int bits;
+
+	/* Try to allocate the requested nr of slots */
+	bits = order_base_2(slots);
+
+	if (bits < FUTEX_MIN_HASH_BITS)
+		bits = FUTEX_MIN_HASH_BITS;
+
+	if (bits > futex_max_hash_bits)
+		bits = futex_max_hash_bits;
+
+	futex_populate_hash(bits);
+
+	hb = mm->futex_hash.hash;
+	return hb == FUTEX_USE_GLOBAL_HASH ? 0 : 1 << mm->futex_hash.hash_bits;
+#else
+	return 0;
+#endif
+}
+
 long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
 		u32 __user *uaddr2, u32 val2, u32 val3)
 {
@@ -3051,11 +3273,12 @@ long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
 
 	if (!(op & FUTEX_PRIVATE_FLAG))
 		flags |= FLAGS_SHARED;
+	else
+		futex_populate_hash(futex_default_hash_bits);
 
 	if (op & FUTEX_CLOCK_REALTIME) {
 		flags |= FLAGS_CLOCKRT;
-		if (cmd != FUTEX_WAIT && cmd != FUTEX_WAIT_BITSET && \
-		    cmd != FUTEX_WAIT_REQUEUE_PI)
+		if (cmd != FUTEX_WAIT_BITSET && cmd != FUTEX_WAIT_REQUEUE_PI)
 			return -ENOSYS;
 	}
 
@@ -3096,6 +3319,8 @@ long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
 					     uaddr2);
 	case FUTEX_CMP_REQUEUE_PI:
 		return futex_requeue(uaddr, flags, uaddr2, val, val2, &val3, 1);
+	case FUTEX_PREALLOC_HASH:
+		return futex_preallocate_hash(val);
 	}
 	return -ENOSYS;
 }

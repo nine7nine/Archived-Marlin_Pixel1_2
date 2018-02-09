@@ -63,6 +63,7 @@
 #include <linux/binfmts.h>
 #include <linux/sched/sysctl.h>
 #include <linux/kexec.h>
+#include <linux/futex.h>
 
 #include <asm/uaccess.h>
 #include <asm/processor.h>
@@ -660,6 +661,26 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
+#ifdef CONFIG_FUTEX_PRIVATE_HASH
+	{
+		.procname	= "futex_private_default_hash_bits",
+		.data		= &futex_default_hash_bits,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &two,
+		.extra2		= &futex_max_hash_bits,
+	},
+	{
+		.procname	= "futex_private_max_hash_bits",
+		.data		= &futex_max_hash_bits,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &futex_default_hash_bits,
+		.extra2		= &futex_sysmax_hash_bits,
+	},
+#endif
 #ifdef CONFIG_FUNCTION_TRACER
 	{
 		.procname	= "ftrace_enabled",

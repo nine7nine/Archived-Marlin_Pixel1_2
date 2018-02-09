@@ -26,6 +26,7 @@
 #include <linux/interrupt.h>
 #include <linux/debug_locks.h>
 #include <linux/osq_lock.h>
+#include <linux/delay.h>
 
 /*
  * In the DEBUG case we are using the "NULL fastpath" for mutexes,
@@ -260,7 +261,7 @@ static inline int mutex_can_spin_on_owner(struct mutex *lock)
 		return 0;
 
 	rcu_read_lock();
-	owner = ACCESS_ONCE(lock->owner);
+	owner = READ_ONCE(lock->owner);
 	if (owner)
 		retval = owner->on_cpu;
 	rcu_read_unlock();
@@ -334,7 +335,7 @@ static bool mutex_optimistic_spin(struct mutex *lock,
 			 * As such, when deadlock detection needs to be
 			 * performed the optimistic spinning cannot be done.
 			 */
-			if (ACCESS_ONCE(ww->ctx))
+			if (READ_ONCE(ww->ctx))
 				break;
 		}
 
@@ -342,7 +343,7 @@ static bool mutex_optimistic_spin(struct mutex *lock,
 		 * If there's an owner, wait for it to either
 		 * release the lock or go to sleep.
 		 */
-		owner = ACCESS_ONCE(lock->owner);
+		owner = READ_ONCE(lock->owner);
 		if (owner && !mutex_spin_on_owner(lock, owner))
 			break;
 
@@ -378,6 +379,17 @@ static bool mutex_optimistic_spin(struct mutex *lock,
 		 * values at the cost of a few extra spins.
 		 */
 		cpu_relax_lowlatency();
+
+		/*
+		 * On arm systems, we must slow down the waiter's repeated
+		 * aquisition of spin_mlock and atomics on the lock count, or
+		 * we risk starving out a thread attempting to release the
+		 * mutex. The mutex slowpath release must take spin lock
+		 * wait_lock. This spin lock can share a monitor with the
+		 * other waiter atomics in the mutex data structure, so must
+		 * take care to rate limit the waiters.
+		 */
+		udelay(1);
 	}
 
 	osq_unlock(&lock->osq);
@@ -481,7 +493,7 @@ static inline int __sched
 __ww_mutex_lock_check_stamp(struct mutex *lock, struct ww_acquire_ctx *ctx)
 {
 	struct ww_mutex *ww = container_of(lock, struct ww_mutex, base);
-	struct ww_acquire_ctx *hold_ctx = ACCESS_ONCE(ww->ctx);
+	struct ww_acquire_ctx *hold_ctx = READ_ONCE(ww->ctx);
 
 	if (!hold_ctx)
 		return 0;
@@ -537,7 +549,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		goto skip_wait;
 
 	debug_mutex_lock_common(lock, &waiter);
-	debug_mutex_add_waiter(lock, &waiter, task_thread_info(task));
+	debug_mutex_add_waiter(lock, &waiter, task);
 
 	/* add waiting tasks to the end of the waitqueue (FIFO): */
 	list_add_tail(&waiter.list, &lock->wait_list);
@@ -582,10 +594,9 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		schedule_preempt_disabled();
 		spin_lock_mutex(&lock->wait_lock, flags);
 	}
-
 	__set_task_state(task, TASK_RUNNING);
 
-	mutex_remove_waiter(lock, &waiter, current_thread_info());
+	mutex_remove_waiter(lock, &waiter, task);
 	/* set it to 0 if there are no waiters left: */
 	if (likely(list_empty(&lock->wait_list)))
 		atomic_set(&lock->count, 0);
@@ -606,7 +617,7 @@ skip_wait:
 	return 0;
 
 err:
-	mutex_remove_waiter(lock, &waiter, task_thread_info(task));
+	mutex_remove_waiter(lock, &waiter, task);
 	spin_unlock_mutex(&lock->wait_lock, flags);
 	debug_mutex_free_waiter(&waiter);
 	mutex_release(&lock->dep_map, 1, ip);

@@ -45,6 +45,7 @@
 #include <linux/notifier.h>
 
 #include <asm/alternative.h>
+#include <asm/tlbflush.h>
 #include <asm/compat.h>
 #include <asm/cacheflush.h>
 #include <asm/fpsimd.h>
@@ -390,6 +391,12 @@ static void tls_thread_switch(struct task_struct *next)
 	"	msr	tpidrro_el0, %1"
 	: : "r" (tpidr), "r" (tpidrro));
 }
+static void tlb_flush_thread(struct task_struct *prev)
+{
+/* Flush the prev task&apos;s TLB entries */
+if (prev->mm)
+flush_tlb_mm(prev->mm);
+}
 
 /* Restore the UAO state depending on next's addr_limit */
 static void uao_thread_switch(struct task_struct *next)
@@ -415,6 +422,7 @@ struct task_struct *__switch_to(struct task_struct *prev,
 	hw_breakpoint_thread_switch(next);
 	contextidr_thread_switch(next);
 	uao_thread_switch(next);
+	tlb_flush_thread(prev);
 
 	/*
 	 * Complete any pending TLB or cache maintenance on this CPU in case

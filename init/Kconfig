@@ -1560,6 +1560,10 @@ config FUTEX
 	  support for "fast userspace mutexes".  The resulting kernel may not
 	  run glibc-based applications correctly.
 
+config FUTEX_PRIVATE_HASH
+	bool
+	default FUTEX && SMP
+
 config HAVE_FUTEX_CMPXCHG
 	bool
 	depends on FUTEX
