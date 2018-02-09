@@ -630,7 +630,7 @@ struct inode {
 	atomic_t		i_readcount; /* struct files open RO */
 #endif
 	const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
-	struct file_lock	*i_flock;
+	struct file_lock_context	*i_flctx;
 	struct address_space	i_data;
 #ifdef CONFIG_QUOTA
 	struct dquot		*i_dquot[MAXQUOTAS];
@@ -897,6 +897,8 @@ static inline struct file *get_file(struct file *f)
 /* legacy typedef, should eventually be removed */
 typedef void *fl_owner_t;
 
+struct file_lock;
+
 struct file_lock_operations {
 	void (*fl_copy_lock)(struct file_lock *, struct file_lock *);
 	void (*fl_release_private)(struct file_lock *);
@@ -905,12 +907,12 @@ struct file_lock_operations {
 struct lock_manager_operations {
 	int (*lm_compare_owner)(struct file_lock *, struct file_lock *);
 	unsigned long (*lm_owner_key)(struct file_lock *);
-	void (*lm_get_owner)(struct file_lock *, struct file_lock *);
-	void (*lm_put_owner)(struct file_lock *);
+	fl_owner_t (*lm_get_owner)(fl_owner_t);
+	void (*lm_put_owner)(fl_owner_t);
 	void (*lm_notify)(struct file_lock *);	/* unblock callback */
 	int (*lm_grant)(struct file_lock *, int);
 	bool (*lm_break)(struct file_lock *);
-	int (*lm_change)(struct file_lock **, int, struct list_head *);
+	int (*lm_change)(struct file_lock *, int, struct list_head *);
 	void (*lm_setup)(struct file_lock *, void **);
 };
 
@@ -945,6 +947,7 @@ int locks_in_grace(struct net *);
  */
 struct file_lock {
 	struct file_lock *fl_next;	/* singly linked list for this inode  */
+	struct list_head fl_list;	/* link into file_lock_context */
 	struct hlist_node fl_link;	/* node in global lists */
 	struct list_head fl_block;	/* circular list of blocked processes */
 	fl_owner_t fl_owner;
@@ -975,6 +978,13 @@ struct file_lock {
 	} fl_u;
 };
 
+struct file_lock_context {
+	spinlock_t		flc_lock;
+	struct list_head	flc_flock;
+	struct list_head	flc_posix;
+	struct list_head	flc_lease;
+};
+
 /* The following constant reflects the upper bound of the file/locking space */
 #ifndef OFFSET_MAX
 #define INT_LIMIT(x)	(~((x)1 << (sizeof(x)*8 - 1)))
@@ -1001,6 +1011,7 @@ extern int fcntl_setlease(unsigned int fd, struct file *filp, long arg);
 extern int fcntl_getlease(struct file *filp);
 
 /* fs/locks.c */
+void locks_free_lock_context(struct file_lock_context *ctx);
 void locks_free_lock(struct file_lock *fl);
 extern void locks_init_lock(struct file_lock *);
 extern struct file_lock * locks_alloc_lock(void);
@@ -1021,7 +1032,7 @@ extern int __break_lease(struct inode *inode, unsigned int flags, unsigned int t
 extern void lease_get_mtime(struct inode *, struct timespec *time);
 extern int generic_setlease(struct file *, long, struct file_lock **, void **priv);
 extern int vfs_setlease(struct file *, long, struct file_lock **, void **);
-extern int lease_modify(struct file_lock **, int, struct list_head *);
+extern int lease_modify(struct file_lock *, int, struct list_head *);
 #else /* !CONFIG_FILE_LOCKING */
 static inline int fcntl_getlk(struct file *file, unsigned int cmd,
 			      struct flock __user *user)
@@ -1056,6 +1067,11 @@ static inline int fcntl_setlease(unsigned int fd, struct file *filp, long arg)
 static inline int fcntl_getlease(struct file *filp)
 {
 	return F_UNLCK;
+}
+
+static inline void
+locks_free_lock_context(struct file_lock_context *ctx)
+{
 }
 
 static inline void locks_init_lock(struct file_lock *fl)
@@ -1148,7 +1164,7 @@ static inline int vfs_setlease(struct file *filp, long arg,
 	return -EINVAL;
 }
 
-static inline int lease_modify(struct file_lock **before, int arg,
+static inline int lease_modify(struct file_lock *fl, int arg,
 			       struct list_head *dispose)
 {
 	return -EINVAL;
@@ -1986,7 +2002,7 @@ static inline int locks_verify_truncate(struct inode *inode,
 				    struct file *filp,
 				    loff_t size)
 {
-	if (inode->i_flock && mandatory_lock(inode))
+	if (inode->i_flctx && mandatory_lock(inode))
 		return locks_mandatory_area(
 			FLOCK_VERIFY_WRITE, inode, filp,
 			size < inode->i_size ? size : inode->i_size,
@@ -2005,7 +2021,7 @@ static inline int break_lease(struct inode *inode, unsigned int mode)
 	 * file.
 	 */
 	smp_mb();
-	if (inode->i_flock)
+	if (inode->i_flctx && !list_empty_careful(&inode->i_flctx->flc_lease))
 		return __break_lease(inode, mode, FL_LEASE);
 	return 0;
 }
@@ -2019,7 +2035,7 @@ static inline int break_deleg(struct inode *inode, unsigned int mode)
 	 * file.
 	 */
 	smp_mb();
-	if (inode->i_flock)
+	if (inode->i_flctx && !list_empty_careful(&inode->i_flctx->flc_lease))
 		return __break_lease(inode, mode, FL_DELEG);
 	return 0;
 }
