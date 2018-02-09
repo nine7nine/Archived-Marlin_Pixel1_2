@@ -3,7 +3,7 @@
  * MSM 7k High speed uart driver
  *
  * Copyright (c) 2008 Google Inc.
- * Copyright (c) 2007-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2017, The Linux Foundation. All rights reserved.
  * Modified: Nick Pelly <npelly@google.com>
  *
  * All source code in this file is licensed under the following license
@@ -44,6 +44,7 @@
 #include <linux/kernel.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-mapping.h>
@@ -1238,16 +1239,27 @@ static void msm_hs_set_termios(struct uart_port *uport,
 unsigned int msm_hs_tx_empty(struct uart_port *uport)
 {
 	unsigned int data;
+	unsigned int isr;
 	unsigned int ret = 0;
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
 
 	msm_hs_resource_vote(msm_uport);
 	data = msm_hs_read(uport, UART_DM_SR);
+	isr = msm_hs_read(uport, UART_DM_ISR);
 	msm_hs_resource_unvote(msm_uport);
-	MSM_HS_DBG("%s(): SR Reg Read 0x%x", __func__, data);
+	MSM_HS_INFO("%s(): SR:0x%x ISR:0x%x ", __func__, data, isr);
 
-	if (data & UARTDM_SR_TXEMT_BMSK)
+	if (data & UARTDM_SR_TXEMT_BMSK) {
 		ret = TIOCSER_TEMT;
+	} else
+		/*
+		 * Add an extra sleep here because sometimes the framework's
+		 * delay (based on baud rate) isn't good enough.
+		 * Note that this won't happen during every port close, only
+		 * on select occassions when the userspace does back to back
+		 * write() and close().
+		 */
+		usleep_range(5000, 7000);
 
 	return ret;
 }
@@ -1425,13 +1437,13 @@ static void msm_hs_submit_tx_locked(struct uart_port *uport)
 	hex_dump_ipc(msm_uport, tx->ipc_tx_ctxt, "Tx",
 			&tx_buf->buf[tx_buf->tail], (u64)src_addr, tx_count);
 	sps_pipe_handle = tx->cons.pipe_handle;
-	/* Queue transfer request to SPS */
-	ret = sps_transfer_one(sps_pipe_handle, src_addr, tx_count,
-				msm_uport, flags);
 
 	/* Set 1 second timeout */
 	mod_timer(&tx->tx_timeout_timer,
 		jiffies + msecs_to_jiffies(MSEC_PER_SEC));
+	/* Queue transfer request to SPS */
+	ret = sps_transfer_one(sps_pipe_handle, src_addr, tx_count,
+				msm_uport, flags);
 
 	MSM_HS_DBG("%s:Enqueue Tx Cmd, ret %d\n", __func__, ret);
 }
@@ -2784,7 +2796,6 @@ static int uartdm_init_port(struct uart_port *uport)
 		ret = -ENOMEM;
 		goto exit_lh_init;
 	}
-	sched_setscheduler(tx->task, SCHED_FIFO, &param);
 
 	/* Set up Uart Receive */
 	msm_hs_write(uport, UART_DM_RFWR, 32);
@@ -3278,7 +3289,7 @@ static int msm_hs_pm_sys_resume_noirq(struct device *dev)
 }
 #endif
 
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 static void  msm_serial_hs_rt_init(struct uart_port *uport)
 {
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
@@ -3426,7 +3437,7 @@ static int msm_hs_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: error creating logging context",
 								__func__);
 	} else {
-		msm_uport->ipc_debug_mask = DBG_LEV;
+		msm_uport->ipc_debug_mask = INFO_LEV;
 		ret = sysfs_create_file(&pdev->dev.kobj,
 				&dev_attr_debug_mask.attr);
 		if (unlikely(ret))
@@ -3571,6 +3582,7 @@ static int msm_hs_probe(struct platform_device *pdev)
 	}
 
 	msm_serial_debugfs_init(msm_uport, pdev->id);
+	msm_hs_unconfig_uart_gpios(uport);
 
 	uport->line = pdev->id;
 	if (pdata->userid && pdata->userid <= UARTDM_NR)
