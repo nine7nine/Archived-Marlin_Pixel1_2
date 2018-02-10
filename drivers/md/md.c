@@ -247,7 +247,6 @@ static void md_make_request(struct request_queue *q, struct bio *bio)
 {
 	const int rw = bio_data_dir(bio);
 	struct mddev *mddev = q->queuedata;
-	int cpu;
 	unsigned int sectors;
 
 	blk_queue_split(q, &bio, q->bio_split);
@@ -288,10 +287,7 @@ static void md_make_request(struct request_queue *q, struct bio *bio)
 	bio->bi_rw &= ~REQ_NOMERGE;
 	mddev->pers->make_request(mddev, bio);
 
-	cpu = part_stat_lock();
-	part_stat_inc(cpu, &mddev->gendisk->part0, ios[rw]);
-	part_stat_add(cpu, &mddev->gendisk->part0, sectors[rw], sectors);
-	part_stat_unlock();
+	generic_start_io_acct(rw, sectors, &mddev->gendisk->part0);
 
 	if (atomic_dec_and_test(&mddev->active_io) && mddev->suspended)
 		wake_up(&mddev->sb_wait);
