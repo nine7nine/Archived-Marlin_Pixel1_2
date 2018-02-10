@@ -15,6 +15,9 @@
 bool schedtune_initialized = false;
 #endif
 
+extern struct rq *lock_rq_of(struct task_struct *p, struct rq_flags *rf);
+extern void unlock_rq_of(struct rq *rq, struct task_struct *p, struct rq_flags *rf);
+
 int sysctl_sched_cfs_boost __read_mostly;
 
 extern struct reciprocal_value schedtune_spc_rdiv;
@@ -385,7 +388,7 @@ int schedtune_can_attach(struct cgroup_subsys_state *css,
 {
 	struct task_struct *task;
 	struct boost_groups *bg;
-	unsigned long irq_flags;
+	struct rq_flags irq_flags;
 	unsigned int cpu;
 	struct rq *rq;
 	int src_bg; /* Source boost group index */
@@ -505,7 +508,7 @@ void schedtune_dequeue_task(struct task_struct *p, int cpu)
 void schedtune_exit_task(struct task_struct *tsk)
 {
 	struct schedtune *st;
-	unsigned long irq_flags;
+	struct rq_flags irq_flags;
 	unsigned int cpu;
 	struct rq *rq;
 	int idx;
