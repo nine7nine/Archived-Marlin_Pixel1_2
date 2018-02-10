@@ -138,7 +138,7 @@ do_app_build =						\
 
 do_compile_shared_library =			\
 	($(print_shared_lib_compile)		\
-	$(CC) --shared $^ -o $@ -lpthread -ldl -Wl,-soname='"$@"';$(shell ln -s $@ liblockdep.so))
+	$(CC) --shared $^ -o $@ -lpthread -ldl -Wl,-soname='"$@"';$(shell ln -sf $@ liblockdep.so))
 
 do_build_static_lib =				\
 	($(print_static_lib_build)		\

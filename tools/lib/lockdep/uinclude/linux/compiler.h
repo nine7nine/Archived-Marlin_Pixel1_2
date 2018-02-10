@@ -3,5 +3,6 @@
 
 #define __used		__attribute__((__unused__))
 #define unlikely
+#define READ_ONCE(x) (x)
 
 #endif
