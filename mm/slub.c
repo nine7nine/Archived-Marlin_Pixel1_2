@@ -408,7 +408,7 @@ static inline bool __cmpxchg_double_slab(struct kmem_cache *s, struct page *page
 		if (cmpxchg_double(&page->freelist, &page->counters,
 				   freelist_old, counters_old,
 				   freelist_new, counters_new))
-			return 1;
+			return true;
 	} else
 #endif
 	{
@@ -418,7 +418,7 @@ static inline bool __cmpxchg_double_slab(struct kmem_cache *s, struct page *page
 			page->freelist = freelist_new;
 			set_page_slub_counters(page, counters_new);
 			slab_unlock(page);
-			return 1;
+			return true;
 		}
 		slab_unlock(page);
 	}
@@ -430,7 +430,7 @@ static inline bool __cmpxchg_double_slab(struct kmem_cache *s, struct page *page
 	pr_info("%s %s: cmpxchg double redo ", n, s->name);
 #endif
 
-	return 0;
+	return false;
 }
 
 static inline bool cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
@@ -444,7 +444,7 @@ static inline bool cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
 		if (cmpxchg_double(&page->freelist, &page->counters,
 				   freelist_old, counters_old,
 				   freelist_new, counters_new))
-			return 1;
+			return true;
 	} else
 #endif
 	{
@@ -458,7 +458,7 @@ static inline bool cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
 			set_page_slub_counters(page, counters_new);
 			slab_unlock(page);
 			local_irq_restore(flags);
-			return 1;
+			return true;
 		}
 		slab_unlock(page);
 		local_irq_restore(flags);
@@ -471,7 +471,7 @@ static inline bool cmpxchg_double_slab(struct kmem_cache *s, struct page *page,
 	pr_info("%s %s: cmpxchg double redo ", n, s->name);
 #endif
 
-	return 0;
+	return false;
 }
 
 #ifdef CONFIG_SLUB_DEBUG
@@ -1236,15 +1236,6 @@ static int __init setup_slub_debug(char *str)
 		 */
 		goto check_slabs;
 
-	if (tolower(*str) == 'o') {
-		/*
-		 * Avoid enabling debugging on caches if its minimum order
-		 * would increase as a result.
-		 */
-		disable_higher_order_debug = 1;
-		goto out;
-	}
-
 	slub_debug = 0;
 	if (*str == '-')
 		/*
@@ -1274,6 +1265,13 @@ static int __init setup_slub_debug(char *str)
 			break;
 		case 'a':
 			slub_debug |= SLAB_FAILSLAB;
+			break;
+		case 'o':
+			/*
+			 * Avoid enabling debugging on caches if its minimum
+			 * order would increase as a result.
+			 */
+			disable_higher_order_debug = 1;
 			break;
 		default:
 			pr_err("slub_debug option '%c' unknown. skipped\n",
