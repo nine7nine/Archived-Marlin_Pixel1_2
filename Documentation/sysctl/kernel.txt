@@ -31,8 +31,6 @@ show up in /proc/sys/kernel:
 - core_pipe_limit
 - core_uses_pid
 - ctrl-alt-del
-- futex_private_default_hash_bits
-- futex_private_max_hash_bits
 - dmesg_restrict
 - domainname
 - hostname
@@ -287,21 +285,6 @@ Note: when a program (like dosemu) has the keyboard in 'raw'
 mode, the ctrl-alt-del is intercepted by the program before it
 ever reaches the kernel tty layer, and it's up to the program
 to decide what to do with it.
-
-==============================================================
-
-futex_private_default_hash_bits:
-
-Adjusts the default hash size (in bits) which is used for
-automatic hash allocations on the first futex operation
-
-==============================================================
-
-futex_private_max_hash_bits:
-
-Adjusts the maximum hash size (in bits). This limits the hash
-size which can be preallocated by applications with the
-FUTEX_PREALLOC_HASH op.
 
 ==============================================================
 

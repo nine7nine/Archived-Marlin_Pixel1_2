@@ -1,7 +1,6 @@
 #ifndef _LINUX_FUTEX_H
 #define _LINUX_FUTEX_H
 
-#include <linux/futex_types.h>
 #include <uapi/linux/futex.h>
 
 struct inode;
@@ -22,19 +21,16 @@ handle_futex_death(u32 __user *uaddr, struct task_struct *curr, int pi);
  *
  * offset is aligned to a multiple of sizeof(u32) (== 4) by definition.
  * We use the two low order bits of offset to tell what is the kind of key :
- *  00 : Private process futex (PTHREAD_PROCESS_PRIVATE) using process private
- *	 hash (no reference on an inode or mm)
+ *  00 : Private process futex (PTHREAD_PROCESS_PRIVATE)
+ *       (no reference on an inode or mm)
  *  01 : Shared futex (PTHREAD_PROCESS_SHARED)
  *	mapped on a file (reference on the underlying inode)
  *  10 : Shared futex (PTHREAD_PROCESS_SHARED)
  *       (but private mapping on an mm, and reference taken on it)
- *  11 : Private process futex (PTHREAD_PROCESS_PRIVATE) using global hash
- *	 (no reference on an inode or mm)
 */
 
-#define FUT_OFF_INODE		0x01 /* Key has a reference on inode */
-#define FUT_OFF_MMSHARED	0x02 /* Key has a reference on mm */
-#define FUT_OFF_PRIVATE		0x03 /* Key has no ref on inode/mm */
+#define FUT_OFF_INODE    1 /* We set bit 0 if key has a reference on inode */
+#define FUT_OFF_MMSHARED 2 /* We set bit 1 if key has a reference on mm */
 
 union futex_key {
 	struct {
@@ -64,31 +60,12 @@ extern void exit_pi_state_list(struct task_struct *curr);
 #else
 extern int futex_cmpxchg_enabled;
 #endif
-
 #else
-static inline void exit_robust_list(struct task_struct *curr) { }
-static inline void exit_pi_state_list(struct task_struct *curr) { }
-#endif
-
-#ifdef CONFIG_FUTEX_PRIVATE_HASH
-/* Process private hash data for futexes */
-
-extern unsigned int futex_default_hash_bits;
-extern unsigned int futex_max_hash_bits;
-extern unsigned int futex_sysmax_hash_bits;
-
-extern void futex_mm_hash_exit(struct mm_struct *mm);
-
-static inline void futex_mm_hash_init(struct mm_struct *mm)
+static inline void exit_robust_list(struct task_struct *curr)
 {
-	raw_spin_lock_init(&mm->futex_hash.lock);
-	mm->futex_hash.hash = NULL;
 }
-
-#else
-
-static inline void futex_mm_hash_init(struct mm_struct *mm) { }
-static inline void futex_mm_hash_exit(struct mm_struct *mm) { }
+static inline void exit_pi_state_list(struct task_struct *curr)
+{
+}
 #endif
-
 #endif

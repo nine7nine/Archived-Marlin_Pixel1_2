@@ -12,7 +12,6 @@
 #include <linux/completion.h>
 #include <linux/cpumask.h>
 #include <linux/uprobes.h>
-#include <linux/futex_types.h>
 #include <linux/page-flags-layout.h>
 #include <linux/workqueue.h>
 #include <asm/page.h>
@@ -414,9 +413,6 @@ struct mm_struct {
 
 	struct linux_binfmt *binfmt;
 
-#ifdef CONFIG_FUTEX_PRIVATE_HASH
-	struct futex_hash futex_hash;
-#endif
 	cpumask_var_t cpu_vm_mask_var;
 
 	/* Architecture-specific MM context */
