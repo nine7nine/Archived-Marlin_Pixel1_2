@@ -62,9 +62,9 @@ extern unsigned int __swait_wake(struct swait_head *head, unsigned int state, un
 extern unsigned int __swait_wake_locked(struct swait_head *head, unsigned int state, unsigned int num);
 
 #define swait_wake(head)			__swait_wake(head, TASK_NORMAL, 1)
-#define swait_wake_interruptible(head)		__swait_wake(head, TASK_INTERRUPTIBLE, 1)
+#define swait_wake_interruptible(head)		__swait_wake(head, TASK_IDLE, 1)
 #define swait_wake_all(head)			__swait_wake(head, TASK_NORMAL, 0)
-#define swait_wake_all_interruptible(head)	__swait_wake(head, TASK_INTERRUPTIBLE, 0)
+#define swait_wake_all_interruptible(head)	__swait_wake(head, TASK_IDLE, 0)
 
 /*
  * Event API
@@ -106,7 +106,7 @@ do {									\
 	DEFINE_SWAITER(__wait);						\
 									\
 	for (;;) {							\
-		swait_prepare(&wq, &__wait, TASK_INTERRUPTIBLE);	\
+		swait_prepare(&wq, &__wait, TASK_IDLE);	\
 		if (condition)						\
 			break;						\
 		if (signal_pending(current)) {				\
@@ -123,7 +123,7 @@ do {									\
 	DEFINE_SWAITER(__wait);						\
 									\
 	for (;;) {							\
-		swait_prepare(&wq, &__wait, TASK_INTERRUPTIBLE);	\
+		swait_prepare(&wq, &__wait, TASK_IDLE);	\
 		if (condition)						\
 			break;						\
 		if (signal_pending(current)) {				\
@@ -142,7 +142,7 @@ do {									\
  * @wq: the waitqueue to wait on
  * @condition: a C expression for the event to wait for
  *
- * The process is put to sleep (TASK_INTERRUPTIBLE) until the
+ * The process is put to sleep (TASK_IDLE) until the
  * @condition evaluates to true. The @condition is checked each time
  * the waitqueue @wq is woken up.
  *
