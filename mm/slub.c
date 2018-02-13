@@ -1499,11 +1499,15 @@ static void setup_object(struct kmem_cache *s, struct page *page,
 {
 	setup_object_debug(s, page, object);
 	set_cookie(s, object, s->random_inactive);
+
+/* delay ctor until the object is requested
+
 	if (unlikely(s->ctor)) {
 		kasan_unpoison_object_data(s, object);
 		s->ctor(object);
 		kasan_poison_object_data(s, object);
 	}
+*/
 }
 
 static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
@@ -2601,6 +2605,11 @@ redo:
 
 	if (unlikely(gfpflags & __GFP_ZERO) && object)
 		memset(object, 0, s->object_size);
+
+/* delay ctor until the object is requested */
+	if (unlikely(s->ctor) && object)
+		s->ctor(object);
+/**/
 
 	if (object) {
 		check_cookie(s, object, s->random_inactive);
