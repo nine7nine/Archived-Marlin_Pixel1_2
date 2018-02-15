@@ -39,7 +39,7 @@
 #define WG_DEFAULT		0
 #define S2W_DEFAULT		0
 #define S2S_DEFAULT		0
-#define WG_PWRKEY_DUR           600
+#define WG_PWRKEY_DUR           180
 
 /* marlin */
 #define SWEEP_Y_MAX             2560
@@ -68,8 +68,8 @@
 #define SWEEP_Y_NEXT_SAILFISH	135
 
 /* Wake Gestures */
-#define SWEEP_TIMEOUT		150
-#define TRIGGER_TIMEOUT		300
+#define SWEEP_TIMEOUT		90
+#define TRIGGER_TIMEOUT		150
 #define DT2W_FEATHER		150
 #define DT2W_TIME 		500
 #define WAKE_GESTURE		0x0b
