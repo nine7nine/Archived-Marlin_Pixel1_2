@@ -2216,7 +2216,7 @@ void task_numa_work(struct callback_head *work)
 	}
 	for (; vma; vma = vma->vm_next) {
 		if (!vma_migratable(vma) || !vma_policy_mof(vma) ||
-		    is_vm_hugetlb_page(vma) || (vma->vm_flags & VM_MIXEDMAP)) {
+			is_vm_hugetlb_page(vma) || (vma->vm_flags & VM_MIXEDMAP)) {
 			continue;
 		}
 
@@ -2802,7 +2802,7 @@ update_tg_cfs_load(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 		/*
 		 * We need to compute a correction term in the case that the
-		 * task group is consuming more cpu than a task of equal
+		 * task group is consuming more CPU than a task of equal
 		 * weight. A task with a weight equals to tg->shares will have
 		 * a load less or equal to scale_load_down(tg->shares).
 		 * Similarly, the sched_entities that represent the task group
@@ -2844,22 +2844,17 @@ update_tg_cfs_load(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 static inline void set_tg_cfs_propagate(struct cfs_rq *cfs_rq)
 {
-	/* set cfs_rq's flag */
 	cfs_rq->propagate_avg = 1;
 }
 
 static inline int test_and_clear_tg_cfs_propagate(struct sched_entity *se)
 {
-	/* Get my cfs_rq */
 	struct cfs_rq *cfs_rq = group_cfs_rq(se);
 
-	/* Nothing to propagate */
 	if (!cfs_rq->propagate_avg)
 		return 0;
 
-	/* Clear my cfs_rq's flag */
 	cfs_rq->propagate_avg = 0;
-
 	return 1;
 }
 
@@ -2874,16 +2869,11 @@ static inline int propagate_entity_load_avg(struct sched_entity *se)
 	if (!test_and_clear_tg_cfs_propagate(se))
 		return 0;
 
-	/* Get parent cfs_rq */
 	cfs_rq = cfs_rq_of(se);
 
-	/* Propagate to parent */
 	set_tg_cfs_propagate(cfs_rq);
 
-	/* Update utilization */
 	update_tg_cfs_util(cfs_rq, se);
-
-	/* Update load */
 	update_tg_cfs_load(cfs_rq, se);
 
 	return 1;
@@ -6134,7 +6124,6 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 		sg = sd->groups;
 		do {
 			int i;
-
 			if (!cpumask_intersects(sched_group_cpus(sg),
 						tsk_cpus_allowed(p)))
 				goto next;
@@ -8533,6 +8522,15 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 	local = &sds->local_stat;
 	busiest = &sds->busiest_stat;
 
+	if (busiest->group_type == group_imbalanced) {
+		/*
+		 * In the group_imb case we cannot rely on group-wide averages
+		 * to ensure cpu-load equilibrium, look at wider averages. XXX
+		 */
+		busiest->load_per_task =
+			min(busiest->load_per_task, sds->avg_load);
+	}
+
 	/*
 	 * In the presence of smp nice balancing, certain scenarios can have
 	 * max load less than avg load(as we skip the groups at or below
@@ -8643,7 +8641,8 @@ static struct sched_group *find_busiest_group(struct lb_env *env)
 	busiest = &sds.busiest_stat;
 
 	/* ASYM feature bypasses nice load balance check */
-	if (check_asym_packing(env, &sds))
+	if ((env->idle == CPU_IDLE || env->idle == CPU_NEWLY_IDLE) &&
+	    check_asym_packing(env, &sds))
 		return sds.busiest;
 
 	/* There is no busy sibling group to pull tasks from */
@@ -9876,6 +9875,47 @@ static void rq_offline_fair(struct rq *rq)
 
 	/* Ensure any throttled groups are reachable by pick_next_task */
 	unthrottle_offline_cfs_rqs(rq);
+}
+
+static inline int
+kick_active_balance(struct rq *rq, struct task_struct *p, int new_cpu)
+{
+	int rc = 0;
+
+	/* Invoke active balance to force migrate currently running task */
+	raw_spin_lock(&rq->lock);
+	if (!rq->active_balance) {
+		rq->active_balance = 1;
+		rq->push_cpu = new_cpu;
+		get_task_struct(p);
+		rq->push_task = p;
+		rc = 1;
+	}
+	raw_spin_unlock(&rq->lock);
+
+	return rc;
+}
+
+void check_for_migration(struct rq *rq, struct task_struct *p)
+{
+	int new_cpu;
+	int active_balance;
+	int cpu = task_cpu(p);
+
+	if (energy_aware() && rq->misfit_task) {
+		if (rq->curr->state != TASK_RUNNING ||
+		    rq->curr->nr_cpus_allowed == 1)
+			return;
+
+		new_cpu = select_energy_cpu_brute(p, cpu, 0);
+		if (capacity_orig_of(new_cpu) > capacity_orig_of(cpu)) {
+			active_balance = kick_active_balance(rq, p, new_cpu);
+			if (active_balance)
+				stop_one_cpu_nowait(cpu,
+						active_load_balance_cpu_stop,
+						rq, &rq->active_balance_work);
+		}
+	}
 }
 
 #endif /* CONFIG_SMP */
