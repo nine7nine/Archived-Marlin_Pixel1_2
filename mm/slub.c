@@ -4451,7 +4451,7 @@ static ssize_t show_slab_objects(struct kmem_cache *s,
 			int node;
 			struct page *page;
 
-			page = ACCESS_ONCE(c->page);
+			page = READ_ONCE(c->page);
 			if (!page)
 				continue;
 
@@ -4466,7 +4466,7 @@ static ssize_t show_slab_objects(struct kmem_cache *s,
 			total += x;
 			nodes[node] += x;
 
-			page = ACCESS_ONCE(c->partial);
+			page = READ_ONCE(c->partial);
 			if (page) {
 				node = page_to_nid(page);
 				if (flags & SO_TOTAL)

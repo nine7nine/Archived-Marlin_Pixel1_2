@@ -456,7 +456,7 @@ struct anon_vma *page_get_anon_vma(struct page *page)
 	unsigned long anon_mapping;
 
 	rcu_read_lock();
-	anon_mapping = (unsigned long) ACCESS_ONCE(page->mapping);
+	anon_mapping = (unsigned long)READ_ONCE(page->mapping);
 	if ((anon_mapping & PAGE_MAPPING_FLAGS) != PAGE_MAPPING_ANON)
 		goto out;
 	if (!page_mapped(page))
@@ -500,14 +500,14 @@ struct anon_vma *page_lock_anon_vma_read(struct page *page)
 	unsigned long anon_mapping;
 
 	rcu_read_lock();
-	anon_mapping = (unsigned long) ACCESS_ONCE(page->mapping);
+	anon_mapping = (unsigned long)READ_ONCE(page->mapping);
 	if ((anon_mapping & PAGE_MAPPING_FLAGS) != PAGE_MAPPING_ANON)
 		goto out;
 	if (!page_mapped(page))
 		goto out;
 
 	anon_vma = (struct anon_vma *) (anon_mapping - PAGE_MAPPING_ANON);
-	root_anon_vma = ACCESS_ONCE(anon_vma->root);
+	root_anon_vma = READ_ONCE(anon_vma->root);
 	if (down_read_trylock(&root_anon_vma->rwsem)) {
 		/*
 		 * If the page is still mapped, then this anon_vma is still
@@ -625,11 +625,12 @@ pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address)
 
 	pmd = pmd_offset(pud, address);
 	/*
-	 * Some THP functions use the sequence pmdp_clear_flush(), set_pmd_at()
+	 * Some THP functions use the sequence pmdp_huge_clear_flush(), set_pmd_at()
 	 * without holding anon_vma lock for write.  So when looking for a
 	 * genuine pmde (in which to find pte), test present and !THP together.
 	 */
-	pmde = ACCESS_ONCE(*pmd);
+	pmde = *pmd;
+	barrier();
 	if (!pmd_present(pmde) || pmd_trans_huge(pmde))
 		pmd = NULL;
 out:
@@ -949,7 +950,12 @@ void page_move_anon_rmap(struct page *page,
 	VM_BUG_ON_PAGE(page->index != linear_page_index(vma, address), page);
 
 	anon_vma = (void *) anon_vma + PAGE_MAPPING_ANON;
-	page->mapping = (struct address_space *) anon_vma;
+	/*
+	 * Ensure that anon_vma and the PAGE_MAPPING_ANON bit are written
+	 * simultaneously, so a concurrent reader (eg page_referenced()'s
+	 * PageAnon()) will not see one without the other.
+	 */
+	WRITE_ONCE(page->mapping, (struct address_space *) anon_vma);
 }
 
 /**
