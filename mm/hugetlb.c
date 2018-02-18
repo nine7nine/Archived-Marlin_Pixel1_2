@@ -35,7 +35,7 @@
 #include <linux/node.h>
 #include "internal.h"
 
-int hugepages_treat_as_movable;
+unsigned long hugepages_treat_as_movable;
 
 int hugetlb_max_hstate __read_mostly;
 unsigned int default_hstate_idx;
@@ -615,9 +615,7 @@ err:
  */
 static int next_node_allowed(int nid, nodemask_t *nodes_allowed)
 {
-	nid = next_node(nid, *nodes_allowed);
-	if (nid == MAX_NUMNODES)
-		nid = first_node(*nodes_allowed);
+	nid = next_node_in(nid, *nodes_allowed);
 	VM_BUG_ON(nid >= MAX_NUMNODES);
 
 	return nid;
@@ -1483,7 +1481,7 @@ int __weak alloc_bootmem_huge_page(struct hstate *h)
 	return 0;
 
 found:
-	BUG_ON(!IS_ALIGNED(virt_to_phys(m), huge_page_size(h)));
+	BUG_ON((unsigned long)virt_to_phys(m) & (huge_page_size(h) - 1));
 	/* Put them into a private list first because mem_map is not up yet */
 	list_add(&m->list, &huge_boot_pages);
 	m->hstate = h;
@@ -2114,7 +2112,7 @@ static void hugetlb_register_node(struct node *node)
  * devices of nodes that have memory.  All on-line nodes should have
  * registered their associated device by this time.
  */
-static void __init hugetlb_register_all_nodes(void)
+static void hugetlb_register_all_nodes(void)
 {
 	int nid;
 
@@ -2676,9 +2674,8 @@ void __unmap_hugepage_range(struct mmu_gather *tlb, struct vm_area_struct *vma,
 
 	tlb_start_vma(tlb, vma);
 	mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
-	address = start;
 again:
-	for (; address < end; address += sz) {
+	for (address = start; address < end; address += sz) {
 		ptep = huge_pte_offset(mm, address);
 		if (!ptep)
 			continue;
@@ -2727,7 +2724,6 @@ again:
 		page_remove_rmap(page);
 		force_flush = !__tlb_remove_page(tlb, page);
 		if (force_flush) {
-			address += sz;
 			spin_unlock(ptl);
 			break;
 		}
@@ -3320,15 +3316,6 @@ long follow_hugetlb_page(struct mm_struct *mm, struct vm_area_struct *vma,
 		spinlock_t *ptl = NULL;
 		int absent;
 		struct page *page;
-
-		/*
-		 * If we have a pending SIGKILL, don't keep faulting pages and
-		 * potentially allocating memory.
-		 */
-		if (unlikely(fatal_signal_pending(current))) {
-			remainder = 0;
-			break;
-		}
 
 		/*
 		 * Some archs (sparc64, sh*) have multiple pte_ts to

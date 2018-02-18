@@ -203,28 +203,30 @@ void __frontswap_init(unsigned type, unsigned long *map)
 	 * p->frontswap set to something valid to work properly.
 	 */
 	frontswap_map_set(sis, map);
-	if (frontswap_ops)
-		frontswap_ops->init(type);
-	else {
-		BUG_ON(type >= MAX_SWAPFILES);
-		set_bit(type, need_init);
-	}
+
+	for_each_frontswap_ops(ops)
+		ops->init(type);
 }
 EXPORT_SYMBOL(__frontswap_init);
 
 bool __frontswap_test(struct swap_info_struct *sis,
 				pgoff_t offset)
 {
-	bool ret = false;
-
-	if (frontswap_ops && sis->frontswap_map)
-		ret = test_bit(offset, sis->frontswap_map);
-	return ret;
+	if (sis->frontswap_map)
+		return test_bit(offset, sis->frontswap_map);
+	return false;
 }
 EXPORT_SYMBOL(__frontswap_test);
 
+static inline void __frontswap_set(struct swap_info_struct *sis,
+				   pgoff_t offset)
+{
+	set_bit(offset, sis->frontswap_map);
+	atomic_inc(&sis->frontswap_pages);
+}
+
 static inline void __frontswap_clear(struct swap_info_struct *sis,
-				pgoff_t offset)
+				     pgoff_t offset)
 {
 	clear_bit(offset, sis->frontswap_map);
 	atomic_dec(&sis->frontswap_pages);
