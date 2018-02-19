@@ -879,6 +879,7 @@ void dpm_resume(pm_message_t state)
 {
 	struct device *dev;
 	ktime_t starttime = ktime_get();
+	bool valid_resume = false;
 
 	trace_suspend_resume(TPS("dpm_resume"), state.event, true);
 	might_sleep();
@@ -896,6 +897,7 @@ void dpm_resume(pm_message_t state)
 	}
 
 	while (!list_empty(&dpm_suspended_list)) {
+		valid_resume = true;
 		dev = to_device(dpm_suspended_list.next);
 		get_device(dev);
 		if (!is_async(dev)) {
@@ -922,6 +924,8 @@ void dpm_resume(pm_message_t state)
 	dpm_show_time(starttime, state, NULL);
 
 	cpufreq_resume();
+       if (valid_resume)
+               cpufreq_resume();
 	trace_suspend_resume(TPS("dpm_resume"), state.event, false);
 }
 
