@@ -852,8 +852,8 @@ binder_enqueue_work_ilocked(struct binder_work *work,
  * Requires the proc->inner_lock to be held.
  */
 static void
-binder_enqueue_thread_work_ilocked_nowake(struct binder_thread *thread,
-					  struct binder_work *work)
+binder_enqueue_deferred_thread_work_ilocked(struct binder_thread *thread,
+					    struct binder_work *work)
 {
 	binder_enqueue_work_ilocked(work, &thread->todo);
 }
@@ -2380,7 +2380,6 @@ static void binder_transaction_buffer_release(struct binder_proc *proc,
 		off_end = failed_at;
 	else
 		off_end = (void *)off_start + buffer->offsets_size;
-
 	for (offp = off_start; offp < off_end; offp++) {
 		struct binder_object_header *hdr;
 		size_t object_size = binder_validate_object(buffer, *offp);
@@ -3366,6 +3365,7 @@ static void binder_transaction(struct binder_proc *proc,
 		binder_free_transaction(in_reply_to);
 	} else if (!(t->flags & TF_ONE_WAY)) {
 		BUG_ON(t->buffer->async_transaction != 0);
+		binder_inner_proc_lock(proc);
 		/*
 		 * Defer the TRANSACTION_COMPLETE, so we don't return to
 		 * userspace immediately; this allows the target process to
@@ -3373,8 +3373,7 @@ static void binder_transaction(struct binder_proc *proc,
 		 * latency. We will then return the TRANSACTION_COMPLETE when
 		 * the target replies (or there is an error).
 		 */
-		binder_inner_proc_lock(proc);
-		binder_enqueue_thread_work_ilocked_nowake(thread, tcomplete);
+		binder_enqueue_deferred_thread_work_ilocked(thread, tcomplete);
 		t->need_reply = 1;
 		t->from_parent = thread->transaction_stack;
 		thread->transaction_stack = t;
@@ -4835,7 +4834,6 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EFAULT;
 			goto err;
 		}
-
 		break;
 	}
 	default:
@@ -5210,7 +5208,7 @@ binder_defer_work(struct binder_proc *proc, enum binder_deferred_state defer)
 	if (hlist_unhashed(&proc->deferred_work_node)) {
 		hlist_add_head(&proc->deferred_work_node,
 				&binder_deferred_list);
-		queue_work(binder_deferred_workqueue, &binder_deferred_work);
+		schedule_work(&binder_deferred_work);
 	}
 	rt_mutex_unlock(&binder_deferred_lock);
 }
@@ -5794,9 +5792,6 @@ static int __init binder_init(void)
 
 	atomic_set(&binder_transaction_log.cur, ~0U);
 	atomic_set(&binder_transaction_log_failed.cur, ~0U);
-	binder_deferred_workqueue = create_singlethread_workqueue("binder");
-	if (!binder_deferred_workqueue)
-		return -ENOMEM;
 
 	binder_debugfs_dir_entry_root = debugfs_create_dir("binder", NULL);
 	if (binder_debugfs_dir_entry_root)
@@ -5858,8 +5853,6 @@ err_init_binder_device_failed:
 	}
 err_alloc_device_names_failed:
 	debugfs_remove_recursive(binder_debugfs_dir_entry_root);
-
-	destroy_workqueue(binder_deferred_workqueue);
 
 	return ret;
 }
