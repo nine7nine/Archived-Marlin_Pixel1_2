@@ -31,6 +31,7 @@
 #include <linux/vmalloc.h>
 #include <linux/security.h>
 #include <linux/backing-dev.h>
+#include <linux/memcontrol.h>
 #include <linux/syscalls.h>
 #include <linux/hugetlb.h>
 #include <linux/hugetlb_cgroup.h>
@@ -1865,8 +1866,8 @@ fail_putback:
 	}
 
 	mlock_migrate_page(new_page, page);
-	set_page_memcg(new_page, page_memcg(page));
-	set_page_memcg(page, NULL);
+	mem_cgroup_migrate(page, new_page, false);
+
 	page_remove_rmap(page);
 
 	spin_unlock(ptl);
