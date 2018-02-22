@@ -1103,7 +1103,7 @@ static ssize_t synaptics_rmi4_wake_gesture_store(struct device *dev,
 	input = input > 0 ? 1 : 0;
 
 	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture)
-		rmi4_data->enable_wakeup_gesture = input;
+		rmi4_data->enable_wakeup_gesture = WAKEUP_GESTURE && input;
 
 	return count;
 }
@@ -1331,6 +1331,8 @@ static ssize_t int_status_store(struct device *dev,
 	else
 		return -EINVAL;
 
+	mutex_lock(&(rmi4_data->rmi4_irq_enable_mutex));
+
 	if (value) {
 		ret = request_threaded_irq(rmi4_data->irq, NULL,
 				synaptics_rmi4_irq, bdata->irq_flags,
@@ -1345,6 +1347,8 @@ static ssize_t int_status_store(struct device *dev,
 		rmi4_data->irq_enabled = false;
 		pr_info("%s: interrupt disable: %x\n", __func__, rmi4_data->irq_enabled);
 	}
+
+	mutex_unlock(&(rmi4_data->rmi4_irq_enable_mutex));
 
 	return count;
 }
@@ -5451,8 +5455,8 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 			PLATFORM_DRIVER_NAME, rmi4_data);
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to create irq thread\n",
-				__func__);
+				"%s: Failed to create irq thread, err = %d\n",
+				__func__, retval);
 		goto err_request_irq;
 	}
 
@@ -5493,7 +5497,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 			}
 		}
 	}
-#ifdef HTC_FEATURE
+#ifdef HTC_FEATURE 
 	retval = synaptics_rmi4_sysfs_init(rmi4_data, true);
 	if (retval < 0) {
 		dev_err(&pdev->dev,
@@ -5941,9 +5945,11 @@ static int synaptics_rmi4_suspend(struct device *dev)
 #ifdef CONFIG_WAKE_GESTURES
 	if (wg_switch) {
 		enable_irq_wake(rmi4_data->irq);
-		goto exit;
+		rmi4_data->suspend = true;
+		return 0;
 	}
 #endif
+
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, true);
 		enable_irq_wake(rmi4_data->irq);
@@ -5964,21 +5970,10 @@ exit:
 	}
 	mutex_unlock(&exp_data.mutex);
 
-#ifdef CONFIG_WAKE_GESTURES
-	if (wg_switch) {
-		rmi4_data->suspend = true;
-
-		return 0;
-	}
-#endif
-
-#ifdef USE_I2C_SWITCH
 	gpio_set_value(rmi4_data->hw_if->board_data->switch_gpio, 1);
 	dev_dbg(rmi4_data->pdev->dev.parent,
 		"%s: Switch I2C mux to sensor hub\n",
 		__func__);
-#endif // USE_I2C_SWITCH
-
 	rmi4_data->suspend = true;
 
 	return 0;
@@ -5998,25 +5993,22 @@ static int synaptics_rmi4_resume(struct device *dev)
 #ifdef CONFIG_WAKE_GESTURES
 	if (!wg_switch) {
 #endif
-#ifdef USE_I2C_SWITCH
 	gpio_set_value(rmi4_data->hw_if->board_data->switch_gpio, 0);
-	dev_dbg(rmi4_data->pdev->dev.parent,
-			"%s: Switch I2C mux to AP\n",
+	dev_dbg(rmi4_data->pdev->dev.parent, "%s: Switch I2C mux to AP\n",
 			__func__);
-#endif // USE_I2C_SWITCH
+
 #ifdef CONFIG_WAKE_GESTURES
 	}
 #endif
-
 	synaptics_rmi4_free_fingers(rmi4_data);
 
 #ifdef CONFIG_WAKE_GESTURES
 	if (wg_switch) {
 		disable_irq_wake(rmi4_data->irq);
-		synaptics_rmi4_force_cal(rmi4_data);
 		goto exit;
 	}
 #endif
+
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, false);
 		disable_irq_wake(rmi4_data->irq);
@@ -6026,11 +6018,9 @@ static int synaptics_rmi4_resume(struct device *dev)
 
 	rmi4_data->current_page = MASK_8BIT;
 
-	synaptics_rmi4_sleep_enable(rmi4_data, false);
-#ifdef USE_I2C_SWITCH
 	synaptics_rmi4_wakeup_gesture(rmi4_data, false);
 	synaptics_rmi4_force_cal(rmi4_data);
-#endif
+	synaptics_rmi4_sleep_enable(rmi4_data, false);
 	synaptics_rmi4_irq_enable(rmi4_data, true, false);
 
 exit:
