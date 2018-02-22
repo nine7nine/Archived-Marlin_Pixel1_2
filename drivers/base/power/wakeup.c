@@ -59,8 +59,6 @@ static LIST_HEAD(wakeup_sources);
 
 static DECLARE_WAIT_QUEUE_HEAD(wakeup_count_wait_queue);
 
-DEFINE_STATIC_SRCU(wakeup_srcu);
-
 /**
  * wakeup_source_prepare - Prepare a new wakeup source for initialization.
  * @ws: Wakeup source to prepare.
@@ -174,7 +172,7 @@ void wakeup_source_remove(struct wakeup_source *ws)
 	spin_lock_irqsave(&events_lock, flags);
 	list_del_rcu(&ws->entry);
 	spin_unlock_irqrestore(&events_lock, flags);
-	synchronize_srcu(&wakeup_srcu);
+	synchronize_rcu();
 }
 EXPORT_SYMBOL_GPL(wakeup_source_remove);
 
@@ -819,10 +817,10 @@ EXPORT_SYMBOL_GPL(pm_get_active_wakeup_sources);
 void pm_print_active_wakeup_sources(void)
 {
 	struct wakeup_source *ws;
-	int srcuidx, active = 0;
+	int active = 0;
 	struct wakeup_source *last_activity_ws = NULL;
 
-	srcuidx = srcu_read_lock(&wakeup_srcu);
+	rcu_read_lock();
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
 		if (ws->active) {
 			pr_info("active wakeup source: %s\n", ws->name);
@@ -838,7 +836,7 @@ void pm_print_active_wakeup_sources(void)
 	if (!active && last_activity_ws)
 		pr_info("last active wakeup source: %s\n",
 			last_activity_ws->name);
-	srcu_read_unlock(&wakeup_srcu, srcuidx);
+	rcu_read_unlock();
 }
 EXPORT_SYMBOL_GPL(pm_print_active_wakeup_sources);
 
@@ -960,9 +958,8 @@ void pm_wakep_autosleep_enabled(bool set)
 {
 	struct wakeup_source *ws;
 	ktime_t now = ktime_get();
-	int srcuidx;
 
-	srcuidx = srcu_read_lock(&wakeup_srcu);
+	rcu_read_lock();
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
 		spin_lock_irq(&ws->lock);
 		if (ws->autosleep_enabled != set) {
@@ -976,7 +973,7 @@ void pm_wakep_autosleep_enabled(bool set)
 		}
 		spin_unlock_irq(&ws->lock);
 	}
-	srcu_read_unlock(&wakeup_srcu, srcuidx);
+	rcu_read_unlock();
 }
 #endif /* CONFIG_PM_AUTOSLEEP */
 
@@ -1066,16 +1063,15 @@ void htc_print_active_wakeup_sources(void)
 static int wakeup_sources_stats_show(struct seq_file *m, void *unused)
 {
 	struct wakeup_source *ws;
-	int srcuidx;
 
 	seq_puts(m, "name\t\tactive_count\tevent_count\twakeup_count\t"
 		"expire_count\tactive_since\ttotal_time\tmax_time\t"
 		"last_change\tprevent_suspend_time\n");
 
-	srcuidx = srcu_read_lock(&wakeup_srcu);
+	rcu_read_lock();
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry)
 		print_wakeup_source_stats(m, ws);
-	srcu_read_unlock(&wakeup_srcu, srcuidx);
+	rcu_read_unlock();
 
 	return 0;
 }
