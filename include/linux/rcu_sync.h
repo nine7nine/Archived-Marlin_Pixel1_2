@@ -32,7 +32,7 @@ enum rcu_sync_type { RCU_SYNC, RCU_SCHED_SYNC, RCU_BH_SYNC };
 struct rcu_sync {
 	int			gp_state;
 	int			gp_count;
-	wait_queue_head_t	gp_wait;
+	struct swait_head	gp_wait;
 
 	int			cb_state;
 	struct rcu_head		cb_head;
@@ -66,7 +66,7 @@ extern void rcu_sync_dtor(struct rcu_sync *);
 #define __RCU_SYNC_INITIALIZER(name, type) {				\
 		.gp_state = 0,						\
 		.gp_count = 0,						\
-		.gp_wait = __WAIT_QUEUE_HEAD_INITIALIZER(name.gp_wait),	\
+		.gp_wait = SWAIT_HEAD_INITIALIZER(name.gp_wait),	\
 		.cb_state = 0,						\
 		.gp_type = type,					\
 	}
