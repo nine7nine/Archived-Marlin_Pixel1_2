@@ -335,7 +335,7 @@ struct apr_svc_ch_dev *apr_tal_open(uint32_t clnt, uint32_t dest, uint32_t dl,
 	}
 
 	rc = wait_event_timeout(apr_ch->wait,
-		(apr_ch->channel_state == GLINK_CONNECTED), 5 * HZ);
+		(apr_ch->channel_state == GLINK_CONNECTED), msecs_to_jiffies(5000));
 	if (rc == 0) {
 		pr_err("%s: TIMEOUT for OPEN event\n", __func__);
 		rc = -ETIMEDOUT;
@@ -347,7 +347,7 @@ struct apr_svc_ch_dev *apr_tal_open(uint32_t clnt, uint32_t dest, uint32_t dl,
 	 * designed not to fail the open call.
 	 */
 	rc = wait_event_timeout(apr_ch->wait,
-		apr_ch->if_remote_intent_ready, 5 * HZ);
+		apr_ch->if_remote_intent_ready, msecs_to_jiffies(5000));
 	if (rc == 0)
 		pr_err("%s: TIMEOUT for remote intent readiness\n", __func__);
 

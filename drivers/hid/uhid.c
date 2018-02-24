@@ -196,7 +196,7 @@ static int __uhid_report_queue_and_wait(struct uhid_device *uhid,
 	mutex_unlock(&uhid->devlock);
 	ret = wait_event_interruptible_timeout(uhid->report_wait,
 				!uhid->report_running || !uhid->running,
-				5 * HZ);
+				msecs_to_jiffies(5000));
 	ret = mutex_lock_interruptible(&uhid->devlock);
 	if (ret)
 		return ret;
