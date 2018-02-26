@@ -34,6 +34,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/of_irq.h>
 #include <linux/syscore_ops.h>
+#include <linux/pm_wakeirq.h>
 
 enum {
 	DEBOUNCE_WAIT_IRQ,	/* Stable irq state */
@@ -1045,7 +1046,8 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		goto fail4;
 	}
 
-	device_init_wakeup(&pdev->dev, wakeup);
+	device_init_wakeup(&pdev->dev, true);
+	dev_pm_set_wake_irq(&pdev->dev, wakeup);
 
 	if (pdata->use_syscore)
 		gpio_keys_syscore_pm_ops.resume = gpio_keys_syscore_resume;
@@ -1089,7 +1091,8 @@ static int gpio_keys_remove(struct platform_device *pdev)
 	sysfs_remove_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 	unregister_syscore_ops(&gpio_keys_syscore_pm_ops);
 
-	device_init_wakeup(&pdev->dev, 0);
+	dev_pm_clear_wake_irq(&pdev->dev);
+	device_init_wakeup(&pdev->dev, false);
 
 	return 0;
 }
@@ -1099,23 +1102,13 @@ static void gpio_keys_syscore_resume(void)
 {
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(global_dev);
 	struct input_dev *input = ddata->input;
-	struct gpio_button_data *bdata = NULL;
 	int error = 0;
-	int i;
 
 	if (ddata->key_pinctrl) {
 		error = gpio_keys_pinctrl_configure(ddata, true);
 		if (error) {
 			dev_err(global_dev, "failed to put the pin in resume state\n");
 			return;
-		}
-	}
-
-	if (device_may_wakeup(global_dev)) {
-		for (i = 0; i < ddata->pdata->nbuttons; i++) {
-			bdata = &ddata->data[i];
-			if (bdata->button->wakeup)
-				disable_irq_wake(bdata->irq);
 		}
 	} else {
 		mutex_lock(&input->mutex);
@@ -1134,21 +1127,13 @@ static int gpio_keys_suspend(struct device *dev)
 {
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	struct input_dev *input = ddata->input;
-	int i, ret;
+	int ret;
 
 	if (ddata->key_pinctrl) {
 		ret = gpio_keys_pinctrl_configure(ddata, false);
 		if (ret) {
 			dev_err(dev, "failed to put the pin in suspend state\n");
 			return ret;
-		}
-	}
-
-	if (device_may_wakeup(dev)) {
-		for (i = 0; i < ddata->pdata->nbuttons; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
-			if (bdata->button->wakeup)
-				enable_irq_wake(bdata->irq);
 		}
 	} else {
 		mutex_lock(&input->mutex);
@@ -1165,7 +1150,6 @@ static int gpio_keys_resume(struct device *dev)
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	struct input_dev *input = ddata->input;
 	int error = 0;
-	int i;
 
 	if (ddata->pdata->use_syscore == true) {
 		dev_dbg(global_dev, "Using syscore resume, no need of this resume.\n");
@@ -1177,14 +1161,6 @@ static int gpio_keys_resume(struct device *dev)
 		if (error) {
 			dev_err(dev, "failed to put the pin in resume state\n");
 			return error;
-		}
-	}
-
-	if (device_may_wakeup(dev)) {
-		for (i = 0; i < ddata->pdata->nbuttons; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
-			if (bdata->button->wakeup)
-				disable_irq_wake(bdata->irq);
 		}
 	} else {
 		mutex_lock(&input->mutex);
