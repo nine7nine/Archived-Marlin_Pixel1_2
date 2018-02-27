@@ -937,10 +937,11 @@ static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 				   int force, enum migrate_mode mode,
 				   enum migrate_reason reason)
 {
-	int rc = 0;
+	int rc = MIGRATEPAGE_SUCCESS;
 	int *result = NULL;
-	struct page *newpage = get_new_page(page, private, &result);
+	struct page *newpage;
 
+	newpage = get_new_page(page, private, &result);
 	if (!newpage)
 		return -ENOMEM;
 
@@ -954,6 +955,8 @@ static ICE_noinline int unmap_and_move(new_page_t get_new_page,
 			goto out;
 
 	rc = __unmap_and_move(page, newpage, force, mode);
+	if (rc == MIGRATEPAGE_SUCCESS)
+		put_new_page = NULL;
 
 out:
 	if (rc != -EAGAIN) {
@@ -975,7 +978,7 @@ out:
 	 * it.  Otherwise, putback_lru_page() will drop the reference grabbed
 	 * during isolation.
 	 */
-	if (rc != MIGRATEPAGE_SUCCESS && put_new_page) {
+	if (put_new_page) {
 		ClearPageSwapBacked(newpage);
 		put_new_page(newpage, private);
 	} else if (unlikely(__is_movable_balloon_page(newpage))) {
@@ -1016,7 +1019,7 @@ static int unmap_and_move_huge_page(new_page_t get_new_page,
 				struct page *hpage, int force,
 				enum migrate_mode mode)
 {
-	int rc = 0;
+	int rc = -EAGAIN;
 	int *result = NULL;
 	int page_was_mapped = 0;
 	struct page *new_hpage;
@@ -1037,8 +1040,6 @@ static int unmap_and_move_huge_page(new_page_t get_new_page,
 	new_hpage = get_new_page(hpage, private, &result);
 	if (!new_hpage)
 		return -ENOMEM;
-
-	rc = -EAGAIN;
 
 	if (!trylock_page(hpage)) {
 		if (!force || mode != MIGRATE_SYNC)
@@ -1064,8 +1065,10 @@ static int unmap_and_move_huge_page(new_page_t get_new_page,
 	if (anon_vma)
 		put_anon_vma(anon_vma);
 
-	if (rc == MIGRATEPAGE_SUCCESS)
+	if (rc == MIGRATEPAGE_SUCCESS) {
 		hugetlb_cgroup_migrate(hpage, new_hpage);
+		put_new_page = NULL;
+	}
 
 	unlock_page(hpage);
 out:
@@ -1077,7 +1080,7 @@ out:
 	 * it.  Otherwise, put_page() will drop the reference grabbed during
 	 * isolation.
 	 */
-	if (rc != MIGRATEPAGE_SUCCESS && put_new_page)
+	if (put_new_page)
 		put_new_page(new_hpage, private);
 	else
 		put_page(new_hpage);

@@ -243,7 +243,7 @@ struct page_frag {
 #endif
 };
 
-typedef unsigned long __nocast vm_flags_t;
+typedef unsigned long vm_flags_t;
 
 /*
  * A region containing a mapping of a non-memory backed file under NOMMU
