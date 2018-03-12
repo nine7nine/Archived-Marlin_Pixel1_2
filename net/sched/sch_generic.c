@@ -721,9 +721,11 @@ struct Qdisc *dev_graft_qdisc(struct netdev_queue *dev_queue,
 	spin_lock_bh(root_lock);
 
 	/* Prune old scheduler */
-	if (oqdisc && atomic_read(&oqdisc->refcnt) <= 1)
-		qdisc_reset(oqdisc);
-
+	if (oqdisc) {
+		if (atomic_read(&oqdisc->refcnt) <= 1)
+			qdisc_reset(oqdisc);
+		set_bit(__QDISC_STATE_DEACTIVATED, &oqdisc->state);
+	}
 	/* ... and graft new one */
 	if (qdisc == NULL)
 		qdisc = &noop_qdisc;
