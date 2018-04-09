@@ -100,17 +100,6 @@ const DECLARE_TLV_DB_LINEAR(msm_compr_vol_gain, 0,
  */
 #define DTS_EAGLE_MAX_PARAM_SIZE_FOR_ALSA ((64 * 4) - 40)
 
-#define COMPRESS_DECODER_OUTPUT_BIT_WIDTH 24
-
-/*
- * Max size for getting DTS EAGLE Param through kcontrol
- * Safe for both 32 and 64 bit platforms
- * 64 = size of kcontrol value array on 64 bit platform
- * 4 = size of parameters Eagle expects before cast to 64 bits
- * 40 = size of dts_eagle_param_desc + module_id cast to 64 bits
- */
-#define DTS_EAGLE_MAX_PARAM_SIZE_FOR_ALSA ((64 * 4) - 40)
-
 struct msm_compr_gapless_state {
 	bool set_next_stream_id;
 	int32_t stream_opened[MAX_NUMBER_OF_STREAMS];
@@ -973,7 +962,7 @@ static int msm_compr_configure_dsp(struct snd_compr_stream *cstream)
 	struct snd_compr_runtime *runtime = cstream->runtime;
 	struct msm_compr_audio *prtd = runtime->private_data;
 	struct snd_soc_pcm_runtime *soc_prtd = cstream->private_data;
-	uint16_t bits_per_sample = COMPRESS_DECODER_OUTPUT_BIT_WIDTH;
+	uint16_t bits_per_sample = 16;
 	int dir = IN, ret = 0;
 	struct audio_client *ac = prtd->audio_client;
 	uint32_t stream_index;
@@ -1564,7 +1553,7 @@ static int msm_compr_trigger(struct snd_compr_stream *cstream, int cmd)
 	unsigned long flags;
 	int stream_id;
 	uint32_t stream_index;
-	uint16_t bits_per_sample = COMPRESS_DECODER_OUTPUT_BIT_WIDTH;
+	uint16_t bits_per_sample = 16;
 
 	if (cstream->direction != SND_COMPRESS_PLAYBACK) {
 		pr_err("%s: Unsupported stream type\n", __func__);
