@@ -1882,7 +1882,7 @@ void cpufreq_suspend(void)
 {
 	struct cpufreq_policy *policy;
 
-	if (!cpufreq_driver || cpufreq_suspended)
+	if (!cpufreq_driver)
 		return;
 
 	if (!has_target())
@@ -1914,7 +1914,7 @@ void cpufreq_resume(void)
 	if (!cpufreq_driver)
 		return;
 
-	if (!cpufreq_driver || !cpufreq_suspended)
+	cpufreq_suspended = false;
 
 	if (!has_target())
 		return;
