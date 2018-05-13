@@ -157,6 +157,7 @@ static int synaptics_rmi4_hw_reset_device(struct synaptics_rmi4_data *rmi4_data)
 static irqreturn_t synaptics_rmi4_irq(int irq, void *data);
 
 #ifdef CONFIG_FB
+static void synaptics_pm_worker(struct work_struct *work);
 static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 		unsigned long event, void *data);
 #endif
@@ -5425,6 +5426,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_FB
+	INIT_WORK(&rmi4_data->pm_work, synaptics_pm_worker);
 	rmi4_data->fb_notifier.notifier_call = synaptics_rmi4_fb_notifier_cb;
 	retval = fb_register_client(&rmi4_data->fb_notifier);
 	if (retval < 0) {
@@ -5821,6 +5823,17 @@ static void synaptics_rmi4_wakeup_gesture(struct synaptics_rmi4_data *rmi4_data,
 }
 
 #ifdef CONFIG_FB
+static void synaptics_pm_worker(struct work_struct *work)
+{
+	struct synaptics_rmi4_data *rmi4_data =
+			container_of(work, typeof(*rmi4_data), pm_work);
+
+	if (rmi4_data->fb_ready)
+		synaptics_rmi4_resume(&rmi4_data->pdev->dev);
+	else
+		synaptics_rmi4_suspend(&rmi4_data->pdev->dev);
+}
+
 static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 		unsigned long event, void *data)
 {
@@ -5835,12 +5848,12 @@ static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 		dev_info(rmi4_data->pdev->dev.parent, "%s, event = %ld blank = %d\n",
 				__func__, event, *transition);
 		if (*transition == FB_BLANK_POWERDOWN) {
-			synaptics_rmi4_suspend(&rmi4_data->pdev->dev);
 			rmi4_data->fb_ready = false;
+			schedule_work(&rmi4_data->pm_work);
 		} else if ((*transition == FB_BLANK_NORMAL || *transition == FB_BLANK_UNBLANK)
 				&& (rmi4_data->fb_ready == false)) {
-			synaptics_rmi4_resume(&rmi4_data->pdev->dev);
 			rmi4_data->fb_ready = true;
+			schedule_work(&rmi4_data->pm_work);
 		}
 	}
 
