@@ -716,6 +716,7 @@ int cpufreq_generic_init(struct cpufreq_policy *policy,
 
 #ifdef CONFIG_CPU_FREQ_STAT
 
+void msm_do_pm_boost(bool do_boost);
 void acct_update_power(struct task_struct *p, cputime_t cputime);
 void cpufreq_task_stats_init(struct task_struct *p);
 void cpufreq_task_stats_remove_uids(uid_t uid_start, uid_t uid_end);
