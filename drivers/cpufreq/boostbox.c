@@ -239,6 +239,7 @@ static void max_boost_worker(struct work_struct *work)
 	/* Set dynamic stune boost value */
 	do_stune_boost("top-app", dsb_max_boost);
 	do_stune_boost("rt", dsb_rt_boost);
+	do_stune_boost("gfx", dsb_gfx_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->max_unboost,
@@ -254,6 +255,7 @@ static void max_unboost_worker(struct work_struct *work)
 	/* Set dynamic stune boost value */
 	do_stune_unboost("top-app", dsb_top_app_floor);
 	do_stune_unboost("rt", dsb_rt_floor);
+	do_stune_unboost("gfx", dsb_gfx_floor);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, WAKE_BOOST | MAX_BOOST | TOP_APP_BOOST | RT_BOOST);

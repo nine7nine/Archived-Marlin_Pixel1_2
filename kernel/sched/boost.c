@@ -22,6 +22,9 @@
 
 unsigned int sysctl_sched_boost;
 
+static int dsb_sched_boost = 30;
+module_param(dsb_sched_boost, uint, 0644);
+
 static bool verify_boost_params(int old_val, int new_val)
 {
 	/*
@@ -40,7 +43,6 @@ int sched_boost_handler(struct ctl_table *table, int write,
 	unsigned int *data = (unsigned int *)table->data;
 	unsigned int old_val;
 	unsigned int dsb_top_app_boost = 30;
-	unsigned int dsb_top_app_floor = 0;
 
 	// Backup current sysctl_sched_boost value
 	old_val = *data;
@@ -56,7 +58,7 @@ int sched_boost_handler(struct ctl_table *table, int write,
 		if (*data > 0)
 			do_stune_boost("top-app", dsb_top_app_boost);
 		else
-			do_stune_unboost("top-app", dsb_top_app_floor);
+			do_stune_unboost("top-app", 0);
 	} else {
 		*data = old_val;
 		ret = -EINVAL;
