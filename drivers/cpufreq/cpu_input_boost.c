@@ -27,7 +27,10 @@
 #define MAX_BOOST		(1U << 3)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static int dynamic_stune_boost = 30;
+// dsb_kick_boost ~ used by mdss/fbdev
+static int dsb_kick_boost = 20;
+// dsb_kick_max_boost ~ app launches & wake boost
+static int dsb_kick_max_boost = 50;
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 struct boost_drv {
@@ -155,7 +158,7 @@ static void input_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_boost("top-app", dynamic_stune_boost);
+	do_stune_boost("top-app", dsb_kick_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->input_unboost,
@@ -187,7 +190,7 @@ static void max_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_boost("top-app", dynamic_stune_boost);
+	do_stune_boost("top-app", dsb_kick_max_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->max_unboost,
