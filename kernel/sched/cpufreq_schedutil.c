@@ -89,18 +89,8 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 {
 	s64 delta_ns;
 
-	if (sg_policy->work_in_progress)
-		return false;
-
-	if (unlikely(sg_policy->need_freq_update)) {
-		sg_policy->need_freq_update = false;
-		/*
-		 * This happens when limits change, so forget the previous
-		 * next_freq value and force an update.
-		 */
-		sg_policy->next_freq = UINT_MAX;
+	if (unlikely(sg_policy->need_freq_update))
 		return true;
-	}
 
 	delta_ns = time - sg_policy->last_freq_update_time;
 
@@ -150,7 +140,7 @@ static void sugov_update_commit(struct sugov_policy *sg_policy, u64 time,
 
 		policy->cur = next_freq;
 		trace_cpu_frequency(next_freq, smp_processor_id());
-	} else {
+	} else if (!sg_policy->work_in_progress) {
 		sg_policy->work_in_progress = true;
 		irq_work_queue(&sg_policy->irq_work);
 	}
@@ -187,8 +177,10 @@ static unsigned int get_next_freq(struct sugov_policy *sg_policy,
 
 	freq = (freq + (freq >> 2)) * util / max;
 
-	if (freq == sg_policy->cached_raw_freq && sg_policy->next_freq != UINT_MAX)
+	if (freq == sg_policy->cached_raw_freq && !sg_policy->need_freq_update)
 		return sg_policy->next_freq;
+
+	sg_policy->need_freq_update = false;
 	sg_policy->cached_raw_freq = freq;
 	return cpufreq_driver_resolve_freq(policy, freq);
 }
@@ -219,9 +211,10 @@ static void sugov_get_util(unsigned long *util, unsigned long *max, u64 time)
 	rt = (rt * max_cap) >> SCHED_CAPACITY_SHIFT;
 
 	*util = boosted_cpu_util(cpu);
-	if (likely(use_pelt()))
-		*util = min((*util + rt), max_cap);
+	if (use_pelt())
+		*util = *util + rt;
 
+	*util = min(*util, max_cap);
 	*max = max_cap;
 }
 
@@ -233,31 +226,57 @@ static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
 	if (!sg_policy->tunables->iowait_boost_enable)
 		return;
 
-	if (flags & SCHED_CPUFREQ_IOWAIT) {
-		sg_cpu->iowait_boost = sg_cpu->iowait_boost_max;
-	} else if (sg_cpu->iowait_boost) {
+	/* Clear iowait_boost if the CPU apprears to have been idle. */
+	if (sg_cpu->iowait_boost) {
 		s64 delta_ns = time - sg_cpu->last_update;
 
-		/* Clear iowait_boost if the CPU apprears to have been idle. */
-		if (delta_ns > TICK_NSEC)
+		if (delta_ns > TICK_NSEC) {
 			sg_cpu->iowait_boost = 0;
+			sg_cpu->iowait_boost_pending = false;
+		}
+	}
+
+	if (flags & SCHED_CPUFREQ_IOWAIT) {
+		if (sg_cpu->iowait_boost_pending)
+			return;
+
+		sg_cpu->iowait_boost_pending = true;
+
+		if (sg_cpu->iowait_boost) {
+			sg_cpu->iowait_boost <<= 1;
+			if (sg_cpu->iowait_boost > sg_cpu->iowait_boost_max)
+				sg_cpu->iowait_boost = sg_cpu->iowait_boost_max;
+		} else {
+			sg_cpu->iowait_boost = sg_cpu->sg_policy->policy->min;
+		}
 	}
 }
 
 static void sugov_iowait_boost(struct sugov_cpu *sg_cpu, unsigned long *util,
 			       unsigned long *max)
 {
-	unsigned long boost_util = sg_cpu->iowait_boost;
-	unsigned long boost_max = sg_cpu->iowait_boost_max;
+	unsigned int boost_util, boost_max;
 
-	if (!boost_util)
+	if (!sg_cpu->iowait_boost)
 		return;
+
+	if (sg_cpu->iowait_boost_pending) {
+		sg_cpu->iowait_boost_pending = false;
+	} else {
+		sg_cpu->iowait_boost >>= 1;
+		if (sg_cpu->iowait_boost < sg_cpu->sg_policy->policy->min) {
+			sg_cpu->iowait_boost = 0;
+			return;
+		}
+	}
+
+	boost_util = sg_cpu->iowait_boost;
+	boost_max = sg_cpu->iowait_boost_max;
 
 	if (*util * boost_max < *max * boost_util) {
 		*util = boost_util;
 		*max = boost_max;
 	}
-	sg_cpu->iowait_boost >>= 1;
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -286,6 +305,13 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	sugov_set_iowait_boost(sg_cpu, time, flags);
 	sg_cpu->last_update = time;
 
+	/*
+	 * For slow-switch systems, single policy requests can't run at the
+	 * moment if update is in progress, unless we acquire update_lock.
+	 */
+	if (sg_policy->work_in_progress)
+		return;
+
 	if (!sugov_should_update_freq(sg_policy, time))
 		return;
 
@@ -311,11 +337,10 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	sugov_update_commit(sg_policy, time, next_f);
 }
 
-static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu)
+static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 {
 	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
 	struct cpufreq_policy *policy = sg_policy->policy;
-	u64 last_freq_update_time = sg_policy->last_freq_update_time;
 	unsigned long util = 0, max = 1;
 	unsigned int j;
 
@@ -331,9 +356,10 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu)
 		 * enough, don't take the CPU into account as it probably is
 		 * idle now (and clear iowait_boost for it).
 		 */
-		delta_ns = last_freq_update_time - j_sg_cpu->last_update;
+		delta_ns = time - j_sg_cpu->last_update;
 		if (delta_ns > TICK_NSEC) {
 			j_sg_cpu->iowait_boost = 0;
+			j_sg_cpu->iowait_boost_pending = false;
 			continue;
 		}
 		if (j_sg_cpu->flags & SCHED_CPUFREQ_DL)
@@ -341,7 +367,7 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu)
 
 		j_util = j_sg_cpu->util;
 		j_max = j_sg_cpu->max;
-		if (j_util * max >= j_max * util) {
+		if (j_util * max > j_max * util) {
 			util = j_util;
 			max = j_max;
 		}
@@ -375,7 +401,7 @@ static void sugov_update_shared(struct update_util_data *hook, u64 time,
 		if (flags & SCHED_CPUFREQ_DL)
 			next_f = sg_policy->policy->cpuinfo.max_freq;
 		else
-			next_f = sugov_next_freq_shared(sg_cpu);
+			next_f = sugov_next_freq_shared(sg_cpu, time);
 
 		sugov_update_commit(sg_policy, time, next_f);
 	}
@@ -386,13 +412,27 @@ static void sugov_update_shared(struct update_util_data *hook, u64 time,
 static void sugov_work(struct kthread_work *work)
 {
 	struct sugov_policy *sg_policy = container_of(work, struct sugov_policy, work);
+	unsigned int freq;
+	unsigned long flags;
+
+	/*
+	 * Hold sg_policy->update_lock shortly to handle the case where:
+	 * incase sg_policy->next_freq is read here, and then updated by
+	 * sugov_update_shared just before work_in_progress is set to false
+	 * here, we may miss queueing the new update.
+	 *
+	 * Note: If a work was queued after the update_lock is released,
+	 * sugov_work will just be called again by kthread_work code; and the
+	 * request will be proceed before the sugov thread sleeps.
+	 */
+	raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
+	freq = sg_policy->next_freq;
+	sg_policy->work_in_progress = false;
+	raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
 
 	mutex_lock(&sg_policy->work_lock);
-	__cpufreq_driver_target(sg_policy->policy, sg_policy->next_freq,
-				CPUFREQ_RELATION_L);
+	__cpufreq_driver_target(sg_policy->policy, freq, CPUFREQ_RELATION_L);
 	mutex_unlock(&sg_policy->work_lock);
-
-	sg_policy->work_in_progress = false;
 }
 
 static void sugov_irq_work(struct irq_work *irq_work)
@@ -747,7 +787,7 @@ static int sugov_start(struct cpufreq_policy *policy)
 		sg_policy->tunables->down_rate_limit_us * NSEC_PER_USEC;
 	update_min_rate_limit_us(sg_policy);
 	sg_policy->last_freq_update_time = 0;
-	sg_policy->next_freq = UINT_MAX;
+	sg_policy->next_freq = 0;
 	sg_policy->work_in_progress = false;
 	sg_policy->need_freq_update = false;
 	sg_policy->cached_raw_freq = 0;
