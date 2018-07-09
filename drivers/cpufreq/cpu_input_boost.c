@@ -25,6 +25,7 @@
 #define INPUT_BOOST		(1U << 1)
 #define WAKE_BOOST		(1U << 2)
 #define MAX_BOOST		(1U << 3)
+#define FB_BOOST		(1U << 4)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 // dsb_kick_boost ~ used by mdss/fbdev
@@ -39,6 +40,8 @@ struct boost_drv {
 	struct delayed_work input_unboost;
 	struct work_struct max_boost;
 	struct delayed_work max_unboost;
+	struct work_struct fb_boost;
+	struct delayed_work fb_unboost;
 	struct notifier_block cpu_notif;
 	struct notifier_block fb_notif;
 	unsigned long max_boost_expires;
@@ -104,7 +107,7 @@ static void unboost_all_cpus(struct boost_drv *b)
 	reset_stune_boost("top-app");
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
-	clear_boost_bit(b, INPUT_BOOST | WAKE_BOOST | MAX_BOOST);
+	clear_boost_bit(b, INPUT_BOOST | WAKE_BOOST | MAX_BOOST | FB_BOOST);
 	update_online_cpu_policy();
 }
 
@@ -116,6 +119,16 @@ void cpu_input_boost_kick(void)
 		return;
 
 	queue_work(b->wq, &b->input_boost);
+}
+
+void cpu_input_boost_fb_kick(void)
+{
+	struct boost_drv *b = boost_drv_g;
+
+	if (!b)
+		return;
+
+	queue_work(b->wq, &b->fb_boost);
 }
 
 static void __cpu_input_boost_kick_max(struct boost_drv *b,
@@ -211,6 +224,28 @@ static void max_unboost_worker(struct work_struct *work)
 	update_online_cpu_policy();
 }
 
+static void fb_boost_worker(struct work_struct *work)
+{
+	struct boost_drv *b = container_of(work, typeof(*b), fb_boost);
+
+	if (!cancel_delayed_work_sync(&b->fb_unboost)) {
+		set_boost_bit(b, FB_BOOST);
+		update_online_cpu_policy();
+	}
+
+	queue_delayed_work(b->wq, &b->fb_unboost,
+		msecs_to_jiffies(CONFIG_INPUT_BOOST_DURATION_MS));
+}
+
+static void fb_unboost_worker(struct work_struct *work)
+{
+	struct boost_drv *b =
+		container_of(to_delayed_work(work), typeof(*b), fb_unboost);
+
+	clear_boost_bit(b, FB_BOOST);
+	update_online_cpu_policy();
+}
+
 static int cpu_notifier_cb(struct notifier_block *nb,
 	unsigned long action, void *data)
 {
@@ -234,6 +269,10 @@ static int cpu_notifier_cb(struct notifier_block *nb,
 	 * unboosting, set policy->min to the absolute min freq for the CPU.
 	 */
 	if (state & INPUT_BOOST) {
+		boost_freq = get_boost_freq(b, policy->cpu);
+		policy->min = min(policy->max, boost_freq);
+	}
+	if (state & FB_BOOST) {
 		boost_freq = get_boost_freq(b, policy->cpu);
 		policy->min = min(policy->max, boost_freq);
 	} else {
@@ -389,6 +428,8 @@ static int __init cpu_input_boost_init(void)
 	INIT_DELAYED_WORK(&b->input_unboost, input_unboost_worker);
 	INIT_WORK(&b->max_boost, max_boost_worker);
 	INIT_DELAYED_WORK(&b->max_unboost, max_unboost_worker);
+	INIT_WORK(&b->fb_boost, fb_boost_worker);
+	INIT_DELAYED_WORK(&b->fb_unboost, fb_unboost_worker);
 	b->state = SCREEN_AWAKE;
 
 	b->cpu_notif.notifier_call = cpu_notifier_cb;
