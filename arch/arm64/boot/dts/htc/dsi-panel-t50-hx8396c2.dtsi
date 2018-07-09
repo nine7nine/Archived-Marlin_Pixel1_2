@@ -53,6 +53,7 @@
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-wr-mem-start = <0x2c>;
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
+		qcom,panel-allow-phy-poweroff;
 		qcom,mdss-dsi-on-command = [
 			39 01 00 00 00 00 04 B9 FF 83 96
 			39 01 00 00 00 00 03 CE 00 0A
