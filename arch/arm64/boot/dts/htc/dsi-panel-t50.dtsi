@@ -63,6 +63,7 @@
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-wr-mem-start = <0x2c>;
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
+		qcom,panel-allow-phy-poweroff;
 		qcom,mdss-dsi-on-command = [
 			05 01 00 00 78 00 01 11 /* exit_sleep_mode wait 120 ms*/
 			23 01 00 00 00 00 02 b0 04
