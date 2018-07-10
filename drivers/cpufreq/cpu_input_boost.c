@@ -28,14 +28,14 @@
 #define FB_BOOST		(1U << 4)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static int dsb_rt_boost = 60;
+static int dsb_rt_boost = 40;
 static int dsb_rt_unboost = 30;
-static int dsb_fg_boost = 30;
+static int dsb_fg_boost = 10;
 static int dsb_fg_unboost = 0;
 // dsb_kick_boost ~ used by mdss/fbdev
-static int dsb_kick_boost = 20;
+static int dsb_kick_boost = 15;
 // dsb_kick_max_boost ~ app launches & wake boost
-static int dsb_kick_max_boost = 50;
+static int dsb_kick_max_boost = 40;
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 struct boost_drv {
@@ -241,6 +241,11 @@ static void fb_boost_worker(struct work_struct *work)
 		update_online_cpu_policy();
 	}
 
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	/* Set dynamic stune boost value */
+	do_stune_boost("top-app", dsb_kick_boost);
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
+
 	queue_delayed_work(b->wq, &b->fb_unboost,
 		msecs_to_jiffies(CONFIG_INPUT_BOOST_DURATION_MS));
 }
@@ -249,6 +254,11 @@ static void fb_unboost_worker(struct work_struct *work)
 {
 	struct boost_drv *b =
 		container_of(to_delayed_work(work), typeof(*b), fb_unboost);
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	/* Reset dynamic stune boost value to the default value */
+	reset_stune_boost("top-app");
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, FB_BOOST);
 	update_online_cpu_policy();
