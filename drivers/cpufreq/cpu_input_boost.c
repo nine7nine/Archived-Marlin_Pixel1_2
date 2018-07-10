@@ -28,10 +28,11 @@
 #define FB_BOOST		(1U << 4)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
+// Schedtune boost groups
 static int dsb_rt_boost = 40;
-static int dsb_rt_unboost = 30;
+static int dsb_rt_reset = 30;
 static int dsb_fg_boost = 10;
-static int dsb_fg_unboost = 0;
+static int dsb_fg_reset = 0;
 // dsb_kick_boost ~ used by mdss/fbdev
 static int dsb_kick_boost = 15;
 // dsb_kick_max_boost ~ app launches & wake boost
@@ -224,8 +225,8 @@ static void max_unboost_worker(struct work_struct *work)
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
 	reset_stune_boost("top-app");
-	set_stune_boost("rt", dsb_rt_unboost);
-	set_stune_boost("foreground", dsb_fg_unboost);
+	set_stune_boost("rt", dsb_rt_reset);
+	set_stune_boost("foreground", dsb_fg_reset);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, WAKE_BOOST | MAX_BOOST);
@@ -244,6 +245,7 @@ static void fb_boost_worker(struct work_struct *work)
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
 	do_stune_boost("top-app", dsb_kick_boost);
+	do_stune_boost("rt", dsb_rt_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->fb_unboost,
@@ -258,6 +260,7 @@ static void fb_unboost_worker(struct work_struct *work)
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
 	reset_stune_boost("top-app");
+	do_stune_boost("rt", dsb_rt_reset);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, FB_BOOST);
