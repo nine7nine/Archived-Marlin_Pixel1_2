@@ -19,6 +19,7 @@
 #include <linux/input.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#include <linux/moduleparam.h>
 
 /* Available bits for boost_drv state */
 #define SCREEN_AWAKE		(1U << 0)
@@ -30,14 +31,31 @@
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 // Schedtune boost groups
 static int dsb_rt_boost = 40;
-static int dsb_rt_reset = 30;
+module_param(dsb_rt_boost, uint, 0644);
 static int dsb_fg_boost = 10;
+module_param(dsb_fg_boost, uint, 0644);
+// resets don't need user tunables
+static int dsb_rt_reset = 30;
 static int dsb_fg_reset = 0;
 // dsb_kick_boost ~ used by mdss/fbdev
 static int dsb_kick_boost = 15;
+module_param(dsb_kick_boost, uint, 0644);
 // dsb_kick_max_boost ~ app launches & wake boost
 static int dsb_kick_max_boost = 40;
+module_param(dsb_kick_max_boost, uint, 0644);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
+
+// fb_boost
+static int fb_boost_duration_ms = 64;
+module_param(fb_boost_duration_ms, uint, 0644);
+// generic boost
+static int input_boost_duration_ms = 100;
+module_param(input_boost_duration_ms, uint, 0644);
+// cpu boost frequencies
+static int boost_freq_lp = 537600;
+module_param(boost_freq_lp, uint, 0644);
+static int boost_freq_perf = 825600;
+module_param(boost_freq_perf, uint, 0644);
 
 struct boost_drv {
 	struct workqueue_struct *wq;
@@ -60,9 +78,9 @@ static struct boost_drv *boost_drv_g;
 static u32 get_boost_freq(struct boost_drv *b, u32 cpu)
 {
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		return CONFIG_INPUT_BOOST_FREQ_LP;
+		return boost_freq_lp;
 
-	return CONFIG_INPUT_BOOST_FREQ_PERF;
+	return boost_freq_perf;
 }
 
 static u32 get_boost_state(struct boost_drv *b)
@@ -180,7 +198,7 @@ static void input_boost_worker(struct work_struct *work)
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->input_unboost,
-		msecs_to_jiffies(CONFIG_INPUT_BOOST_DURATION_MS));
+		msecs_to_jiffies(input_boost_duration_ms));
 }
 
 static void input_unboost_worker(struct work_struct *work)
@@ -249,7 +267,7 @@ static void fb_boost_worker(struct work_struct *work)
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->fb_unboost,
-		msecs_to_jiffies(CONFIG_INPUT_BOOST_DURATION_MS));
+		msecs_to_jiffies(fb_boost_duration_ms));
 }
 
 static void fb_unboost_worker(struct work_struct *work)
