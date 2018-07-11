@@ -2753,7 +2753,7 @@ static int dsi_event_thread(void *data)
 	u32 arg;
 	int ret;
 
-	param.sched_priority = 60;
+	param.sched_priority = 16;
 	ret = sched_setscheduler_nocheck(current, SCHED_FIFO, &param);
 	if (ret)
 		pr_err("%s: set priority failed\n", __func__);
