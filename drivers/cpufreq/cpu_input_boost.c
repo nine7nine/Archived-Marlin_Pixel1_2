@@ -32,30 +32,34 @@
 // Schedtune boost groups
 static int dsb_rt_boost = 40;
 module_param(dsb_rt_boost, uint, 0644);
-static int dsb_fg_boost = 10;
+static int dsb_fg_boost = 20;
 module_param(dsb_fg_boost, uint, 0644);
 // resets don't need user tunables
 static int dsb_rt_reset = 30;
 static int dsb_fg_reset = 0;
-// dsb_kick_boost ~ used by mdss/fbdev
-static int dsb_kick_boost = 15;
+// dsb_kick_boost ~ not used yet
+static int dsb_kick_boost = 30;
 module_param(dsb_kick_boost, uint, 0644);
+// dsb_fb_kick_boost ~ used by mdss/fbdev
+static int dsb_fb_kick_boost = 30;
+module_param(dsb_fb_kick_boost, uint, 0644);
 // dsb_kick_max_boost ~ app launches & wake boost
 static int dsb_kick_max_boost = 40;
 module_param(dsb_kick_max_boost, uint, 0644);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
-// fb_boost
+// fb_boost duration - no modparam
 static int fb_boost_duration_ms = 64;
-module_param(fb_boost_duration_ms, uint, 0644);
+static int wake_boost_duration_ms = 1000;
+module_param(wake_boost_duration_ms, uint, 0644);
 // generic boost
 static int input_boost_duration_ms = 100;
 module_param(input_boost_duration_ms, uint, 0644);
 // cpu boost frequencies
-static int boost_freq_lp = 537600;
-module_param(boost_freq_lp, uint, 0644);
-static int boost_freq_perf = 825600;
-module_param(boost_freq_perf, uint, 0644);
+static int cpufreq_lp_boost = 537600;
+module_param(cpufreq_lp_boost, uint, 0644);
+static int cpufreq_perf_boost = 825600;
+module_param(cpufreq_perf_boost, uint, 0644);
 
 struct boost_drv {
 	struct workqueue_struct *wq;
@@ -78,9 +82,9 @@ static struct boost_drv *boost_drv_g;
 static u32 get_boost_freq(struct boost_drv *b, u32 cpu)
 {
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		return boost_freq_lp;
+		return cpufreq_lp_boost;
 
-	return boost_freq_perf;
+	return cpufreq_perf_boost;
 }
 
 static u32 get_boost_state(struct boost_drv *b)
@@ -262,7 +266,7 @@ static void fb_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_boost("top-app", dsb_kick_boost);
+	do_stune_boost("top-app", dsb_fb_kick_boost);
 	do_stune_boost("rt", dsb_rt_boost);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
@@ -335,7 +339,7 @@ static int fb_notifier_cb(struct notifier_block *nb,
 	/* Boost when the screen turns on and unboost when it turns off */
 	if (*blank == FB_BLANK_UNBLANK) {
 		set_boost_bit(b, SCREEN_AWAKE);
-		__cpu_input_boost_kick_max(b, CONFIG_WAKE_BOOST_DURATION_MS);
+		__cpu_input_boost_kick_max(b, wake_boost_duration_ms);
 	} else {
 		clear_boost_bit(b, SCREEN_AWAKE);
 		unboost_all_cpus(b);
