@@ -3527,7 +3527,8 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct pin_cookie cookie
 		if (unlikely(!p))
 			p = idle_sched_class.pick_next_task(rq, prev, cookie);
 
-		return p;
+		if (likely(p != RETRY_TASK))
+			return p;
 	}
 
 again:

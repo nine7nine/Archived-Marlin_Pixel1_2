@@ -616,6 +616,22 @@ static inline struct rt_bandwidth *sched_rt_bandwidth(struct rt_rq *rt_rq)
 
 #endif /* CONFIG_RT_GROUP_SCHED */
 
+static inline void unthrottle_rt_rq(struct rt_rq *rt_rq)
+{
+	rt_rq->rt_time = 0;
+	rt_rq->rt_throttled = 0;
+	sched_rt_rq_enqueue(rt_rq);
+}
+
+int try_to_unthrottle_rt_rq(struct rt_rq *rt_rq)
+{
+	if (rt_rq_throttled(rt_rq)) {
+		unthrottle_rt_rq(rt_rq);
+		return 1;
+	}
+	return 0;
+}
+
 bool sched_rt_bandwidth_account(struct rt_rq *rt_rq)
 {
 	struct rt_bandwidth *rt_b = sched_rt_bandwidth(rt_rq);
@@ -952,7 +968,21 @@ static int sched_rt_runtime_exceeded(struct rt_rq *rt_rq)
 		 * but accrue some time due to boosting.
 		 */
 		if (likely(rt_b->rt_runtime)) {
+
 			static bool once = false;
+
+			if (sched_feat(RT_RUNTIME_GREED)) {
+				struct rq *rq = rq_of_rt_rq(rt_rq);
+				/*
+				 * If there is no other tasks able to run
+				 * on this rq, lets be greed and reset our
+				 * rt_time.
+				 */
+				if (rq->nr_running == rt_rq->rt_nr_running) {
+					rt_rq->rt_time = 0;
+					return 0;
+				}
+			}
 
 			rt_rq->rt_throttled = 1;
 

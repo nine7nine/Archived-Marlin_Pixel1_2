@@ -485,6 +485,8 @@ struct rt_rq {
 #endif
 };
 
+int try_to_unthrottle_rt_rq(struct rt_rq *rt_rq);
+
 /* Deadline class' related fields in a runqueue */
 struct dl_rq {
 	/* runqueue is an rbtree, ordered by deadline */
