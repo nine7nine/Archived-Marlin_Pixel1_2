@@ -1111,6 +1111,28 @@ static int _do_stune_boost(struct schedtune *st, int boost, int *slot)
 	return ret;
 }
 
+static int _do_stune_unboost(struct schedtune *st, int boost, int *slot)
+{
+	int ret = 0;
+	int boost = 0;
+	struct schedtune *st = getSchedtune(st_name);
+
+	if (!st)
+		return -EINVAL;
+
+	ret = deactivate_boost_slot(st, slot);
+	if (ret) {
+		return -EINVAL;
+	}
+	/* Unboost if new value is less than current */
+	mutex_lock(&stune_boost_mutex);
+	if (boost < st->boost)
+		ret = dynamic_boost(st, boost);
+	mutex_unlock(&stune_boost_mutex);
+
+	return ret;
+}
+
 int reset_stune_boost(char *st_name, int slot)
 {
 	int ret = 0;
@@ -1154,6 +1176,16 @@ int do_stune_boost(char *st_name, int boost, int *slot)
 		return -EINVAL;
 
 	return _do_stune_boost(st, boost, slot);
+}
+
+int do_stune_unboost(char *st_name, int boost, int *slot)
+{
+	struct schedtune *st = getSchedtune(st_name);
+
+	if (!st)
+		return -EINVAL;
+
+	return _do_stune_unboost(st, boost, slot);
 }
 
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
