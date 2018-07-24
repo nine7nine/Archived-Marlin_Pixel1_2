@@ -77,6 +77,10 @@
 #include <linux/compiler.h>
 #include <linux/kcov.h>
 
+#ifdef CONFIG_BOOSTBOX
+#include <linux/boostbox.h>
+#endif /* CONFIG_BOOSTOBX */
+
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
 #include <asm/uaccess.h>
@@ -1678,6 +1682,15 @@ long do_fork(unsigned long clone_flags,
 	struct task_struct *p;
 	int trace = 0;
 	long nr;
+
+#ifdef CONFIG_BOOSTBOX
+	static int app_launch_boost_ms;
+	/* Boost CPU to the max for when userspace launches an app. The duration
+	 * is user-defined, but 1000 ms by default.
+	 */
+	if (is_zygote_pid(current->pid))
+		boostbox_kick_max(app_launch_boost_ms);
+#endif
 
 	/*
 	 * Determine whether and which event to report to ptracer.  When
