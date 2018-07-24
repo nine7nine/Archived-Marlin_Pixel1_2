@@ -14521,8 +14521,6 @@ static void hdd_populate_random_mac_addr(hdd_context_t *hdd_ctx, uint32_t num)
 	}
 }
 
-extern void set_wifi_mac(void);
-
 /**
  * hdd_cnss_wlan_mac() - API to get mac addresses from cnss platform driver
  * @hdd_ctx: HDD Context
@@ -14543,7 +14541,6 @@ static int hdd_cnss_wlan_mac(hdd_context_t *hdd_ctx)
 	tSirMacAddr customMacAddr;
 	VOS_STATUS status;
 
-	set_wifi_mac();
 	addr = vos_get_cnss_wlan_mac_buff(dev, &no_of_mac_addr);
 
 	if (no_of_mac_addr == 0 || !addr) {
