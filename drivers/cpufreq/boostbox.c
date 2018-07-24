@@ -43,15 +43,16 @@ static int boost_slot;
 static bool stune_boost_active;
 
 static int dsb_idle_boost = 0;
+module_param(dsb_idle_boost, uint, 0644);
 static int dsb_idle_boost_ms = 45000;
 module_param(dsb_idle_boost_ms, uint, 0644);
 
 /* Schedtune "floor" values */
-static int dsb_top_app_floor = 20;
+static int dsb_top_app_floor = 0;
 module_param(dsb_top_app_floor, uint, 0644);
-static int dsb_gfx_floor = 20;
+static int dsb_gfx_floor = 0;
 module_param(dsb_gfx_floor, uint, 0644);
-static int dsb_rt_floor = 15;
+static int dsb_rt_floor = 0;
 module_param(dsb_rt_floor, uint, 0644);
 static int dsb_fg_floor = 0;
 module_param(dsb_fg_floor, uint, 0644);
@@ -61,31 +62,31 @@ module_param(dsb_audio_floor, uint, 0644);
 /* Schedtune "boost" values  */
 static int dsb_kick_max_boost = 30;
 module_param(dsb_kick_max_boost, uint, 0644);
-static int dsb_top_app_boost = 20;
+static int dsb_top_app_boost = 24;
 module_param(dsb_top_app_boost, uint, 0644);
 static int dsb_gfx_kick_boost = 20;
 module_param(dsb_gfx_kick_boost, uint, 0644);
-static int dsb_rt_boost = 18;
+static int dsb_rt_boost = 20;
 module_param(dsb_rt_boost, uint, 0644);
 static int dsb_fg_boost = 6;
 module_param(dsb_fg_boost, uint, 0644);
 static int dsb_audio_boost = 6;
 module_param(dsb_audio_boost, uint, 0644);
-static int audio_boost_ms = 64;
-module_param(audio_boost_ms, uint, 0644);
+static int dsb_audio_boost_ms = 64;
+module_param(dsb_audio_boost_ms, uint, 0644);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 // boost cpu frequencies
-static int lp_min_boost = 384000;
-module_param(lp_min_boost, uint, 0644);
-static int perf_min_boost = 384000;
-module_param(perf_min_boost, uint, 0644);
+static int sx_lp_min_boost = 384000;
+module_param(sx_lp_min_boost, uint, 0644);
+static int sx_perf_min_boost = 384000;
+module_param(sx_perf_min_boost, uint, 0644);
 // Boosting Durations
-static int gfx_boost_ms = 64;
-static int wake_boost_ms = 1000;
-module_param(wake_boost_ms, uint, 0644);
-static int app_launch_boost_ms = 1000;
-module_param(app_launch_boost_ms, uint, 0644);
+static int sx_gfx_boost_ms = 64;
+static int sx_wake_boost_ms = 1000;
+module_param(sx_wake_boost_ms, uint, 0644);
+static int sx_app_launch_boost_ms = 1000;
+module_param(sx_app_launch_boost_ms, uint, 0644);
 
 struct boost_drv {
 	struct workqueue_struct *wq;
@@ -110,9 +111,9 @@ static struct boost_drv *boost_drv_g;
 static u32 get_boost_freq(struct boost_drv *b, u32 cpu)
 {
 	if (cpumask_test_cpu(cpu, cpu_lp_mask))
-		return lp_min_boost;
+		return sx_lp_min_boost;
 
-	return perf_min_boost;
+	return sx_perf_min_boost;
 }
 
 static u32 get_boost_state(struct boost_drv *b)
@@ -330,7 +331,7 @@ static void gfx_boost_worker(struct work_struct *work)
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->gfx_unboost,
-		msecs_to_jiffies(gfx_boost_ms));
+		msecs_to_jiffies(sx_gfx_boost_ms));
 }
 
 static void gfx_unboost_worker(struct work_struct *work)
@@ -376,7 +377,7 @@ static void audio_boost_worker(struct work_struct *work)
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->audio_unboost,
-		msecs_to_jiffies(audio_boost_ms));
+		msecs_to_jiffies(dsb_audio_boost_ms));
 }
 
 static void audio_unboost_worker(struct work_struct *work)
@@ -485,7 +486,7 @@ static int fb_notifier_cb(struct notifier_block *nb,
 	/* Boost when the screen turns on and unboost when it turns off */
 	if (*blank == FB_BLANK_UNBLANK) {
 		set_boost_bit(b, SCREEN_AWAKE);
-		__boostbox_kick_max(b, wake_boost_ms);
+		__boostbox_kick_max(b, sx_wake_boost_ms);
 	} else {
 		clear_boost_bit(b, SCREEN_AWAKE);
 		unboost_all_cpus(b);
