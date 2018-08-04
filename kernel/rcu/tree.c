@@ -173,11 +173,21 @@ static int kthread_prio = IS_ENABLED(CONFIG_RCU_BOOST) ? 1 : 0;
 #endif /* #else #ifdef CONFIG_RCU_KTHREAD_PRIO */
 module_param(kthread_prio, int, 0644);
 
-/* Delay in jiffies for grace-period initialization delays. */
-static int gp_init_delay = IS_ENABLED(CONFIG_RCU_TORTURE_TEST_SLOW_INIT)
-				? CONFIG_RCU_TORTURE_TEST_SLOW_INIT_DELAY
-				: 0;
+/* Delay in jiffies for grace-period initialization delays, debug only. */
+
+#ifdef CONFIG_RCU_TORTURE_TEST_SLOW_PREINIT
+static int gp_preinit_delay = CONFIG_RCU_TORTURE_TEST_SLOW_PREINIT_DELAY;
+module_param(gp_preinit_delay, int, 0644);
+#else /* #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_PREINIT */
+static const int gp_preinit_delay;
+#endif /* #else #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_PREINIT */
+
+#ifdef CONFIG_RCU_TORTURE_TEST_SLOW_INIT
+static int gp_init_delay = CONFIG_RCU_TORTURE_TEST_SLOW_INIT_DELAY;
 module_param(gp_init_delay, int, 0644);
+#else /* #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_INIT */
+static const int gp_init_delay;
+#endif /* #else #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_INIT */
 
 #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_CLEANUP
 static int gp_cleanup_delay = CONFIG_RCU_TORTURE_TEST_SLOW_CLEANUP_DELAY;
@@ -185,6 +195,17 @@ module_param(gp_cleanup_delay, int, 0644);
 #else /* #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_CLEANUP */
 static const int gp_cleanup_delay;
 #endif /* #else #ifdef CONFIG_RCU_TORTURE_TEST_SLOW_CLEANUP */
+
+/*
+ * Number of grace periods between delays, normalized by the duration of
+ * the delay.  The longer the the delay, the more the grace periods between
+ * each delay.  The reason for this normalization is that it means that,
+ * for non-zero delays, the overall slowdown of grace periods is constant
+ * regardless of the duration of the delay.  This arrangement balances
+ * the need for long delays to increase some race probabilities with the
+ * need for fast grace periods to increase other race probabilities.
+ */
+#define PER_RCU_NODE_PERIOD 3	/* Number of grace periods between delays. */
 
 /*
  * Track the rcutorture test sequence number and the update version
@@ -1922,11 +1943,7 @@ static int rcu_gp_init(struct rcu_state *rsp)
 					    rnp->grphi, rnp->qsmask);
 		raw_spin_unlock_irq(&rnp->lock);
 		cond_resched_rcu_qs();
-		READ_ONCE(rsp->gp_activity) = jiffies;
-		if (IS_ENABLED(CONFIG_RCU_TORTURE_TEST_SLOW_INIT) &&
-		    gp_init_delay > 0 &&
-		    !(rsp->gpnum % (rcu_num_nodes * 10)))
-			schedule_timeout_uninterruptible(gp_init_delay);
+		WRITE_ONCE(rsp->gp_activity, jiffies);
 	}
 
 	return 1;
@@ -3348,7 +3365,7 @@ void cond_synchronize_sched(unsigned long oldstate)
 	if (ULONG_CMP_GE(oldstate, newstate))
 		synchronize_sched();
 }
-EXPORT_SYMBOL_GPL(cond_synchronize_sched)
+EXPORT_SYMBOL_GPL(cond_synchronize_sched);
 
 /* Adjust sequence number for start of update-side operation. */
 static void rcu_seq_start(unsigned long *sp)

@@ -228,12 +228,11 @@ void __wait_rcu_gp(bool checktiny, int n, call_rcu_func_t *crcu_array,
 		   struct rcu_synchronize *rs_array);
 
 #define _wait_rcu_gp(checktiny, ...) \
-do { \
-	call_rcu_func_t __crcu_array[] = { __VA_ARGS__ }; \
-	const int __n = ARRAY_SIZE(__crcu_array); \
-	struct rcu_synchronize __rs_array[__n]; \
-	\
-	__wait_rcu_gp(checktiny, __n, __crcu_array, __rs_array); \
+do {									\
+	call_rcu_func_t __crcu_array[] = { __VA_ARGS__ };		\
+	struct rcu_synchronize __rs_array[ARRAY_SIZE(__crcu_array)];	\
+	__wait_rcu_gp(checktiny, ARRAY_SIZE(__crcu_array),		\
+			__crcu_array, __rs_array);			\
 } while (0)
 
 #define wait_rcu_gp(...) _wait_rcu_gp(false, __VA_ARGS__)
@@ -410,8 +409,8 @@ extern struct srcu_struct tasks_rcu_exit_srcu;
  */
 #define cond_resched_rcu_qs() \
 do { \
-	rcu_note_voluntary_context_switch(current); \
-	cond_resched(); \
+	if (!cond_resched()) \
+		rcu_note_voluntary_context_switch(current); \
 } while (0)
 
 #if defined(CONFIG_DEBUG_LOCK_ALLOC) || defined(CONFIG_RCU_TRACE) || defined(CONFIG_SMP)
@@ -536,27 +535,7 @@ static inline int rcu_read_lock_sched_held(void)
 
 #endif /* #else #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 
-/* Deprecate rcu_lockdep_assert():  Use RCU_LOCKDEP_WARN() instead. */
-static inline void __attribute((deprecated)) deprecate_rcu_lockdep_assert(void)
-{
-}
-
 #ifdef CONFIG_PROVE_RCU
-
-/**
- * rcu_lockdep_assert - emit lockdep splat if specified condition not met
- * @c: condition to check
- * @s: informative message
- */
-#define rcu_lockdep_assert(c, s)					\
-	do {								\
-		static bool __section(.data.unlikely) __warned;		\
-		deprecate_rcu_lockdep_assert();				\
-		if (debug_lockdep_rcu_enabled() && !__warned && !(c)) {	\
-			__warned = true;				\
-			lockdep_rcu_suspicious(__FILE__, __LINE__, s);	\
-		}							\
-	} while (0)
 
 /**
  * RCU_LOCKDEP_WARN - emit lockdep splat if specified condition is met
@@ -625,32 +604,17 @@ static inline void rcu_preempt_sleep_check(void)
 })
 #define __rcu_dereference_check(p, c, space) \
 ({ \
-	typeof(*p) *_________p1 = (typeof(*p) *__force)READ_ONCE(p); \
+	/* Dependency order vs. p above. */ \
+	typeof(*p) *________p1 = (typeof(*p) *__force)lockless_dereference(p); \
 	RCU_LOCKDEP_WARN(!(c), "suspicious rcu_dereference_check() usage"); \
 	rcu_dereference_sparse(p, space); \
-	smp_read_barrier_depends(); /* Dependency order vs. p above. */ \
-	((typeof(*p) __force __kernel *)(_________p1)); \
+	((typeof(*p) __force __kernel *)(________p1)); \
 })
 #define __rcu_dereference_protected(p, c, space) \
 ({ \
 	RCU_LOCKDEP_WARN(!(c), "suspicious rcu_dereference_protected() usage"); \
 	rcu_dereference_sparse(p, space); \
 	((typeof(*p) __force __kernel *)(p)); \
-})
-
-#define __rcu_access_index(p, space) \
-({ \
-	typeof(p) _________p1 = READ_ONCE(p); \
-	rcu_dereference_sparse(p, space); \
-	(_________p1); \
-})
-#define __rcu_dereference_index_check(p, c) \
-({ \
-	typeof(p) _________p1 = READ_ONCE(p); \
-	rcu_lockdep_assert(c, \
-			   "suspicious rcu_dereference_index_check() usage"); \
-	smp_read_barrier_depends(); /* Dependency order vs. p above. */ \
-	(_________p1); \
 })
 
 /**
@@ -747,7 +711,7 @@ static inline void rcu_preempt_sleep_check(void)
  * annotated as __rcu.
  */
 #define rcu_dereference_check(p, c) \
-	__rcu_dereference_check((p), rcu_read_lock_held() || (c), __rcu)
+	__rcu_dereference_check((p), (c) || rcu_read_lock_held(), __rcu)
 
 /**
  * rcu_dereference_bh_check() - rcu_dereference_bh with debug checking
@@ -757,7 +721,7 @@ static inline void rcu_preempt_sleep_check(void)
  * This is the RCU-bh counterpart to rcu_dereference_check().
  */
 #define rcu_dereference_bh_check(p, c) \
-	__rcu_dereference_check((p), rcu_read_lock_bh_held() || (c), __rcu)
+	__rcu_dereference_check((p), (c) || rcu_read_lock_bh_held(), __rcu)
 
 /**
  * rcu_dereference_sched_check() - rcu_dereference_sched with debug checking
@@ -767,7 +731,7 @@ static inline void rcu_preempt_sleep_check(void)
  * This is the RCU-sched counterpart to rcu_dereference_check().
  */
 #define rcu_dereference_sched_check(p, c) \
-	__rcu_dereference_check((p), rcu_read_lock_sched_held() || (c), \
+	__rcu_dereference_check((p), (c) || rcu_read_lock_sched_held(), \
 				__rcu)
 
 #define rcu_dereference_raw(p) rcu_dereference_check(p, 1) /*@@@ needed? @@@*/
@@ -780,41 +744,6 @@ static inline void rcu_preempt_sleep_check(void)
  * rcu_read_lock_held().
  */
 #define rcu_dereference_raw_notrace(p) __rcu_dereference_check((p), 1, __rcu)
-
-/**
- * rcu_access_index() - fetch RCU index with no dereferencing
- * @p: The index to read
- *
- * Return the value of the specified RCU-protected index, but omit the
- * smp_read_barrier_depends() and keep the READ_ONCE().  This is useful
- * when the value of this index is accessed, but the index is not
- * dereferenced, for example, when testing an RCU-protected index against
- * -1.  Although rcu_access_index() may also be used in cases where
- * update-side locks prevent the value of the index from changing, you
- * should instead use rcu_dereference_index_protected() for this use case.
- */
-#define rcu_access_index(p) __rcu_access_index((p), __rcu)
-
-/**
- * rcu_dereference_index_check() - rcu_dereference for indices with debug checking
- * @p: The pointer to read, prior to dereferencing
- * @c: The conditions under which the dereference will take place
- *
- * Similar to rcu_dereference_check(), but omits the sparse checking.
- * This allows rcu_dereference_index_check() to be used on integers,
- * which can then be used as array indices.  Attempting to use
- * rcu_dereference_check() on an integer will give compiler warnings
- * because the sparse address-space mechanism relies on dereferencing
- * the RCU-protected pointer.  Dereferencing integers is not something
- * that even gcc will put up with.
- *
- * Note that this function does not implicitly check for RCU read-side
- * critical sections.  If this function gains lots of uses, it might
- * make sense to provide versions for each flavor of RCU, but it does
- * not make sense as of early 2010.
- */
-#define rcu_dereference_index_check(p, c) \
-	__rcu_dereference_index_check((p), (c))
 
 /**
  * rcu_dereference_protected() - fetch RCU pointer when updates prevented
@@ -860,6 +789,28 @@ static inline void rcu_preempt_sleep_check(void)
  * Makes rcu_dereference_check() do the dirty work.
  */
 #define rcu_dereference_sched(p) rcu_dereference_sched_check(p, 0)
+
+/**
+ * rcu_pointer_handoff() - Hand off a pointer from RCU to other mechanism
+ * @p: The pointer to hand off
+ *
+ * This is simply an identity function, but it documents where a pointer
+ * is handed off from RCU to some other synchronization mechanism, for
+ * example, reference counting or locking.  In C11, it would map to
+ * kill_dependency().  It could be used as follows:
+ *
+ *	rcu_read_lock();
+ *	p = rcu_dereference(gp);
+ *	long_lived = is_long_lived(p);
+ *	if (long_lived) {
+ *		if (!atomic_inc_not_zero(p->refcnt))
+ *			long_lived = false;
+ *		else
+ *			p = rcu_pointer_handoff(p);
+ *	}
+ *	rcu_read_unlock();
+ */
+#define rcu_pointer_handoff(p) (p)
 
 /**
  * rcu_read_lock() - mark the beginning of an RCU read-side critical section
@@ -930,7 +881,9 @@ static inline void rcu_read_lock(void)
  * Unfortunately, this function acquires the scheduler's runqueue and
  * priority-inheritance spinlocks.  This means that deadlock could result
  * if the caller of rcu_read_unlock() already holds one of these locks or
- * any lock that is ever acquired while holding them.
+ * any lock that is ever acquired while holding them; or any lock which
+ * can be taken from interrupt context because rcu_boost()->rt_mutex_lock()
+ * does not disable irqs while taking ->wait_lock.
  *
  * That said, RCU readers are never priority boosted unless they were
  * preempted.  Therefore, one way to avoid deadlock is to make sure
@@ -1090,7 +1043,8 @@ static inline notrace void rcu_read_unlock_sched_notrace(void)
  */
 #define RCU_INIT_POINTER(p, v) \
 	do { \
-		p = RCU_INITIALIZER(v); \
+		rcu_dereference_sparse(p, __rcu); \
+		WRITE_ONCE(p, RCU_INITIALIZER(v)); \
 	} while (0)
 
 /**
