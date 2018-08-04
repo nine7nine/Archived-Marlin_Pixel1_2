@@ -1764,29 +1764,6 @@ the RELEASE would simply complete, thereby avoiding the deadlock.
 	a sleep-unlock race, but the locking primitive needs to resolve
 	such races properly in any case.
 
-With smp_mb__after_unlock_lock(), the two critical sections cannot overlap.
-For example, with the following code, the store to *A will always be
-seen by other CPUs before the store to *B:
-
-	*A = a;
-	RELEASE M
-	ACQUIRE N
-	smp_mb__after_unlock_lock();
-	*B = b;
-
-The operations will always occur in one of the following orders:
-
-	STORE *A, RELEASE, ACQUIRE, smp_mb__after_unlock_lock(), STORE *B
-	STORE *A, ACQUIRE, RELEASE, smp_mb__after_unlock_lock(), STORE *B
-	ACQUIRE, STORE *A, RELEASE, smp_mb__after_unlock_lock(), STORE *B
-
-If the RELEASE and ACQUIRE were instead both operating on the same lock
-variable, only the first of these alternatives can occur.  In addition,
-the more strongly ordered systems may rule out some of the above orders.
-But in any case, as noted earlier, the smp_mb__after_unlock_lock()
-ensures that the store to *A will always be seen as happening before
-the store to *B.
-
 Locks and semaphores may not provide any guarantee of ordering on UP compiled
 systems, and so cannot be counted on in such a situation to actually achieve
 anything at all - especially with respect to I/O accesses - unless combined

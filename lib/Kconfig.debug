@@ -1342,6 +1342,7 @@ config RCU_TORTURE_TEST
 	tristate "torture tests for RCU"
 	depends on DEBUG_KERNEL
 	select TORTURE_TEST
+	select SRCU
 	default n
 	help
 	  This option provides a kernel module that runs torture tests
@@ -1370,6 +1371,81 @@ config RCU_TORTURE_TEST_RUNNABLE
 	  Say N here if you want the RCU torture tests to start only
 	  after being manually enabled via /proc.
 
+config RCU_TORTURE_TEST_SLOW_PREINIT
+	bool "Slow down RCU grace-period pre-initialization to expose races"
+	depends on RCU_TORTURE_TEST
+	help
+	  This option delays grace-period pre-initialization (the
+	  propagation of CPU-hotplug changes up the rcu_node combining
+	  tree) for a few jiffies between initializing each pair of
+	  consecutive rcu_node structures.  This helps to expose races
+	  involving grace-period pre-initialization, in other words, it
+	  makes your kernel less stable.  It can also greatly increase
+	  grace-period latency, especially on systems with large numbers
+	  of CPUs.  This is useful when torture-testing RCU, but in
+	  almost no other circumstance.
+
+	  Say Y here if you want your system to crash and hang more often.
+	  Say N if you want a sane system.
+
+config RCU_TORTURE_TEST_SLOW_PREINIT_DELAY
+	int "How much to slow down RCU grace-period pre-initialization"
+	range 0 5
+	default 3
+	depends on RCU_TORTURE_TEST_SLOW_PREINIT
+	help
+	  This option specifies the number of jiffies to wait between
+	  each rcu_node structure pre-initialization step.
+
+config RCU_TORTURE_TEST_SLOW_INIT
+	bool "Slow down RCU grace-period initialization to expose races"
+	depends on RCU_TORTURE_TEST
+	help
+	  This option delays grace-period initialization for a few
+	  jiffies between initializing each pair of consecutive
+	  rcu_node structures.	This helps to expose races involving
+	  grace-period initialization, in other words, it makes your
+	  kernel less stable.  It can also greatly increase grace-period
+	  latency, especially on systems with large numbers of CPUs.
+	  This is useful when torture-testing RCU, but in almost no
+	  other circumstance.
+
+	  Say Y here if you want your system to crash and hang more often.
+	  Say N if you want a sane system.
+
+config RCU_TORTURE_TEST_SLOW_INIT_DELAY
+	int "How much to slow down RCU grace-period initialization"
+	range 0 5
+	default 0
+	depends on RCU_TORTURE_TEST_SLOW_INIT
+	help
+	  This option specifies the number of jiffies to wait between
+	  each rcu_node structure initialization.
+
+config RCU_TORTURE_TEST_SLOW_CLEANUP
+	bool "Slow down RCU grace-period cleanup to expose races"
+	depends on RCU_TORTURE_TEST
+	help
+	  This option delays grace-period cleanup for a few jiffies
+	  between cleaning up each pair of consecutive rcu_node
+	  structures.  This helps to expose races involving grace-period
+	  cleanup, in other words, it makes your kernel less stable.
+	  It can also greatly increase grace-period latency, especially
+	  on systems with large numbers of CPUs.  This is useful when
+	  torture-testing RCU, but in almost no other circumstance.
+
+	  Say Y here if you want your system to crash and hang more often.
+	  Say N if you want a sane system.
+
+config RCU_TORTURE_TEST_SLOW_CLEANUP_DELAY
+	int "How much to slow down RCU grace-period cleanup"
+	range 0 5
+	default 3
+	depends on RCU_TORTURE_TEST_SLOW_CLEANUP
+	help
+	  This option specifies the number of jiffies to wait between
+	  each rcu_node structure cleanup operation.
+
 config RCU_CPU_STALL_TIMEOUT
 	int "RCU CPU stall timeout in seconds"
 	depends on RCU_STALL_COMMON
@@ -1381,21 +1457,9 @@ config RCU_CPU_STALL_TIMEOUT
 	  RCU grace period persists, additional CPU stall warnings are
 	  printed at more widely spaced intervals.
 
-config RCU_CPU_STALL_VERBOSE
-	bool "Print additional per-task information for RCU_CPU_STALL_DETECTOR"
-	depends on TREE_PREEMPT_RCU
-	default y
-	help
-	  This option causes RCU to printk detailed per-task information
-	  for any tasks that are stalling the current RCU grace period.
-
-	  Say N if you are unsure.
-
-	  Say Y if you want to enable such checks.
-
 config RCU_CPU_STALL_INFO
 	bool "Print additional diagnostics on RCU CPU stall"
-	depends on (TREE_RCU || TREE_PREEMPT_RCU) && DEBUG_KERNEL
+	depends on (TREE_RCU || PREEMPT_RCU) && DEBUG_KERNEL
 	default n
 	help
 	  For each stalled CPU that is aware of the current RCU grace
@@ -1407,6 +1471,17 @@ config RCU_CPU_STALL_INFO
 
 	  Say Y if you want to enable such diagnostics.
 
+config RCU_STALL_WATCHDOG_BITE
+	bool "RCU stall induce watchdog bite"
+	depends on RCU_STALL_COMMON && QCOM_WATCHDOG_V2
+	help
+	  Induce watchdog bite if RCU grace period extends more than
+	  specified no of seconds instead of just warning messages.
+	  This helps to collect ram dumps and cpu context for
+	  postmortem analysis. Generally if a given RCU grace period
+	  extends more than the specified number of seconds,
+	  a CPU stall warning is printed.
+
 config RCU_TRACE
 	bool "Enable tracing for RCU"
 	depends on DEBUG_KERNEL
@@ -1417,6 +1492,17 @@ config RCU_TRACE
 
 	  Say Y here if you want to enable RCU tracing
 	  Say N if you are unsure.
+
+config RCU_EQS_DEBUG
+	bool "Use this when adding any sort of NO_HZ support to your arch"
+	depends on DEBUG_KERNEL
+	help
+	  This option provides consistency checks in RCU's handling of
+	  NO_HZ.  These checks have proven quite helpful in detecting
+	  bugs in arch-specific NO_HZ code.
+
+	  Say N here if you need ultimate kernel/user switch latencies
+	  Say Y if you are unsure
 
 endmenu # "RCU Debugging"
 

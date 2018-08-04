@@ -104,8 +104,8 @@ static DEFINE_SPINLOCK(cgroup_idr_lock);
 static DEFINE_SPINLOCK(release_agent_path_lock);
 
 #define cgroup_assert_mutex_or_rcu_locked()				\
-	rcu_lockdep_assert(rcu_read_lock_held() ||			\
-			   lockdep_is_held(&cgroup_mutex),		\
+	RCU_LOCKDEP_WARN(!rcu_read_lock_held() &&			\
+			   !lockdep_is_held(&cgroup_mutex),		\
 			   "cgroup_mutex or RCU read lock required");
 
 /*
@@ -5081,6 +5081,12 @@ int __init cgroup_init(void)
 
 	BUG_ON(cgroup_init_cftypes(NULL, cgroup_dfl_base_files));
 	BUG_ON(cgroup_init_cftypes(NULL, cgroup_legacy_base_files));
+
+	/*
+	 * The latency of the synchronize_sched() is too high for cgroups,
+	 * avoid it at the cost of forcing all readers into the slow path.
+	 */
+	rcu_sync_enter_start(&cgroup_threadgroup_rwsem.rss);
 
 	mutex_lock(&cgroup_mutex);
 
