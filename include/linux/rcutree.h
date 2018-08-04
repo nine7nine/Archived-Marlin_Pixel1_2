@@ -81,12 +81,9 @@ void cond_synchronize_rcu(unsigned long oldstate);
 
 extern unsigned long rcutorture_testseq;
 extern unsigned long rcutorture_vernum;
-unsigned long rcu_batches_started(void);
-unsigned long rcu_batches_started_bh(void);
-unsigned long rcu_batches_started_sched(void);
-unsigned long rcu_batches_completed(void);
-unsigned long rcu_batches_completed_bh(void);
-unsigned long rcu_batches_completed_sched(void);
+long rcu_batches_completed(void);
+long rcu_batches_completed_bh(void);
+long rcu_batches_completed_sched(void);
 void show_rcu_gp_kthreads(void);
 
 void rcu_force_quiescent_state(void);
@@ -99,7 +96,5 @@ void rcu_scheduler_starting(void);
 extern int rcu_scheduler_active __read_mostly;
 
 bool rcu_is_watching(void);
-
-void rcu_all_qs(void);
 
 #endif /* __LINUX_RCUTREE_H */
