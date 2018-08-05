@@ -189,6 +189,4 @@ const char *apr_get_lpass_subsys_name(void);
 uint16_t apr_get_reset_domain(uint16_t proc);
 int apr_start_rx_rt(void *handle);
 int apr_end_rx_rt(void *handle);
-int apr_start_tx_rt(void *handle);
-int apr_end_tx_rt(void *handle);
 #endif
