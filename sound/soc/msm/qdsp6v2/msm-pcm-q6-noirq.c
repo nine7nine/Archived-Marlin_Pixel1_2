@@ -572,26 +572,36 @@ static int msm_pcm_close(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *soc_prtd = substream->private_data;
 	struct msm_audio *prtd = runtime->private_data;
 	struct audio_client *ac = prtd->audio_client;
+	struct msm_plat_data *pdata;
+	uint32_t timeout;
 	int dir = 0;
 	int ret = 0;
 
 	if (ac) {
-		/* 
-		Don't give msm_pcm_close the Unvote downgrade For Glink Tx/Rx 
-		thread priority. But *DO* give it an upgrade vote in 
-		msm_pcm_open() calls for Low-Latency use case. 
-
-		by not allowing the Unvote here ~ we keep it's rtprio set.
-		The down vote would lower priority, resulting in clicks
-		and pops on background playback with no (top-app) audio app 
-		actually focused. 
-		 */
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) 
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			dir = IN;
-
-		else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) 
+		/*
+		 * Unvote to downgrade the Rx thread priority from
+		 * RT Thread for Low-Latency use case.
+		 */
+		pdata = (struct msm_plat_data *)
+			dev_get_drvdata(soc_prtd->platform->dev);
+		if (pdata) {
+			if (pdata->perf_mode == LOW_LATENCY_PCM_MODE)
+				apr_end_rx_rt(prtd->audio_client->apr);
+		}
+		else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 			dir = OUT;
-
+		/*
+		 * Unvote to downgrade the Tx thread priority from
+		 * RT Thread for Low-Latency use case.
+		 */
+		pdata = (struct msm_plat_data *)
+			dev_get_drvdata(soc_prtd->platform->dev);
+		if (pdata) {
+			if (pdata->perf_mode == LOW_LATENCY_PCM_MODE)
+				apr_end_tx_rt(prtd->audio_client->apr);
+		}
 		/* determine timeout length */
 		if (runtime->frame_bits == 0 || runtime->rate == 0) {
 			timeout = CMD_EOS_MIN_TIMEOUT_LENGTH;
