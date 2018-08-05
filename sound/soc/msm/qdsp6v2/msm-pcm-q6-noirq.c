@@ -259,11 +259,6 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 	if ((substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
 	    (pdata->perf_mode == LOW_LATENCY_PCM_MODE))
 		apr_start_rx_rt(prtd->audio_client->apr);
-	/* Vote to update the Tx thread priority to RT Thread for record */
-	if ((substream->stream == SNDRV_PCM_STREAM_CAPTURE) &&
-	    (pdata->perf_mode == LOW_LATENCY_PCM_MODE))
-		apr_start_tx_rt(prtd->audio_client->apr);
-
 	return 0;
 
 fail_cmd:
@@ -592,16 +587,7 @@ static int msm_pcm_close(struct snd_pcm_substream *substream)
 		}
 		else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 			dir = OUT;
-		/*
-		 * Unvote to downgrade the Tx thread priority from
-		 * RT Thread for Low-Latency use case.
-		 */
-		pdata = (struct msm_plat_data *)
-			dev_get_drvdata(soc_prtd->platform->dev);
-		if (pdata) {
-			if (pdata->perf_mode == LOW_LATENCY_PCM_MODE)
-				apr_end_tx_rt(prtd->audio_client->apr);
-		}
+
 		/* determine timeout length */
 		if (runtime->frame_bits == 0 || runtime->rate == 0) {
 			timeout = CMD_EOS_MIN_TIMEOUT_LENGTH;
