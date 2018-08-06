@@ -14,7 +14,7 @@ obj-$(CONFIG_CPU_FREQ_GOV_INTERACTIVE)	+= cpufreq_interactive.o
 obj-$(CONFIG_CPU_FREQ_GOV_COMMON)	+= cpufreq_governor.o
 obj-$(CONFIG_CPU_BOOST)			+= cpu-boost.o
 
-# Boostbox
+# CPU Input Boost
 obj-$(CONFIG_BOOSTBOX)		+= boostbox.o
 
 obj-$(CONFIG_CPUFREQ_DT)		+= cpufreq-dt.o
