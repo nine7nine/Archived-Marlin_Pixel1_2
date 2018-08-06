@@ -39,6 +39,7 @@ unsigned int top;
 unsigned int rt;
 unsigned int gfx;
 unsigned int audio;
+static int boost_slot;
 
 /* Schedtune "floor" values */
 static int dsb_top_app_floor = 0;
@@ -149,9 +150,9 @@ static void unboost_all_cpus(struct boost_drv *b)
  
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
-	do_stune_unboost("top-app", dsb_top_app_floor);
-	do_stune_unboost("gfx", dsb_gfx_floor);
-	do_stune_unboost("rt", dsb_rt_floor);
+	do_stune_unboost("top-app", dsb_top_app_floor, &boost_slot);
+	do_stune_unboost("gfx", dsb_gfx_floor, &boost_slot);
+	do_stune_unboost("rt", dsb_rt_floor, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, WAKE_BOOST | MAX_BOOST | GFX_BOOST | TOP_APP_BOOST | RT_BOOST);
@@ -207,9 +208,9 @@ static void __boostbox_kick_max(struct boost_drv *b,
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_boost("top-app", dsb_max_boost);
-	do_stune_boost("rt", dsb_rt_boost);
-	do_stune_boost("gfx", dsb_gfx_boost);
+	do_stune_boost("top-app", dsb_max_boost, &boost_slot);
+	do_stune_boost("rt", dsb_rt_boost, &boost_slot);
+	do_stune_boost("gfx", dsb_gfx_boost, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	atomic_set(&b->max_boost_dur, duration_ms);
@@ -237,9 +238,9 @@ static void max_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_boost("top-app", dsb_max_boost);
-	do_stune_boost("rt", dsb_rt_boost);
-	do_stune_boost("gfx", dsb_gfx_boost);
+	do_stune_boost("top-app", dsb_max_boost, &boost_slot);
+	do_stune_boost("rt", dsb_rt_boost, &boost_slot);
+	do_stune_boost("gfx", dsb_gfx_boost, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->max_unboost,
@@ -253,9 +254,9 @@ static void max_unboost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_unboost("top-app", dsb_top_app_floor);
-	do_stune_unboost("rt", dsb_rt_floor);
-	do_stune_unboost("gfx", dsb_gfx_floor);
+	do_stune_unboost("top-app", dsb_top_app_floor, &boost_slot);
+	do_stune_unboost("rt", dsb_rt_floor, &boost_slot);
+	do_stune_unboost("gfx", dsb_gfx_floor, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, WAKE_BOOST | MAX_BOOST | TOP_APP_BOOST | RT_BOOST);
@@ -273,7 +274,7 @@ static void gfx_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Set dynamic stune boost value */
-	do_stune_boost("gfx", dsb_gfx_boost);
+	do_stune_boost("gfx", dsb_gfx_boost, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->gfx_unboost,
@@ -287,7 +288,7 @@ static void gfx_unboost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
-	do_stune_unboost("gfx", dsb_gfx_floor);
+	do_stune_unboost("gfx", dsb_gfx_floor, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, GFX_BOOST);
@@ -305,7 +306,7 @@ static void top_app_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
-	do_stune_boost("top-app", dsb_top_app_boost);
+	do_stune_boost("top-app", dsb_top_app_boost, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->top_app_unboost,
@@ -318,7 +319,7 @@ static void top_app_unboost_worker(struct work_struct *work)
 		container_of(to_delayed_work(work), typeof(*b), top_app_unboost);
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_unboost("top-app", dsb_top_app_floor);
+	do_stune_unboost("top-app", dsb_top_app_floor, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, TOP_APP_BOOST);
@@ -336,7 +337,7 @@ static void rt_boost_worker(struct work_struct *work)
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	/* Reset dynamic stune boost value to the default value */
-	do_stune_boost("rt", dsb_rt_boost);
+	do_stune_boost("rt", dsb_rt_boost, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(b->wq, &b->rt_unboost,
@@ -349,7 +350,7 @@ static void rt_unboost_worker(struct work_struct *work)
 		container_of(to_delayed_work(work), typeof(*b), rt_unboost);
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-	do_stune_unboost("rt", dsb_rt_floor);
+	do_stune_unboost("rt", dsb_rt_floor, &boost_slot);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	clear_boost_bit(b, RT_BOOST);
