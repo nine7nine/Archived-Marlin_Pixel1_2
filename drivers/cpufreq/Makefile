@@ -17,6 +17,9 @@ obj-$(CONFIG_CPU_BOOST)			+= cpu-boost.o
 # CPU Input Boost
 obj-$(CONFIG_BOOSTBOX)		+= boostbox.o
 
+# Boostbox
+obj-$(CONFIG_BOOSTBOX)		+= boostbox.o
+
 obj-$(CONFIG_CPUFREQ_DT)		+= cpufreq-dt.o
 
 ##################################################################################
