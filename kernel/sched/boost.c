@@ -11,6 +11,7 @@
  */
 
 #include "sched.h"
+#include <linux/sched.h>
 
 /*
  * Scheduler boost is a mechanism to temporarily place tasks on CPUs
@@ -20,10 +21,6 @@
  */
 
 unsigned int sysctl_sched_boost;
-
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-static int boost_slot;
-#endif // CONFIG_DYNAMIC_STUNE_BOOST
 
 static bool verify_boost_params(int old_val, int new_val)
 {
@@ -42,6 +39,8 @@ int sched_boost_handler(struct ctl_table *table, int write,
 	int ret;
 	unsigned int *data = (unsigned int *)table->data;
 	unsigned int old_val;
+	unsigned int dsb_top_app_boost = 30;
+	unsigned int dsb_top_app_floor = 0;
 
 	// Backup current sysctl_sched_boost value
 	old_val = *data;
@@ -55,9 +54,9 @@ int sched_boost_handler(struct ctl_table *table, int write,
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
 	if (verify_boost_params(old_val, *data)) {
 		if (*data > 0)
-			do_stune_sched_boost("top-app", &boost_slot);
+			do_stune_boost("top-app", dsb_top_app_boost);
 		else
-			reset_stune_boost("top-app", boost_slot);
+			do_stune_unboost("top-app", dsb_top_app_floor);
 	} else {
 		*data = old_val;
 		ret = -EINVAL;

@@ -893,6 +893,25 @@ int do_stune_boost(char *st_name, int boost)
 	return ret;
 }
 
+int do_stune_unboost(char *st_name, int boost)
+{
+	int ret = 0;
+	struct schedtune *st = getSchedtune(st_name);
+
+	if (!st)
+		return -EINVAL;
+
+	mutex_lock(&stune_boost_mutex);
+
+	/* Unboost if new value is less than current */
+	if (boost < st->boost)
+		ret = dynamic_boost_write(st, boost);
+
+	mutex_unlock(&stune_boost_mutex);
+
+	return ret;
+}
+
 int set_stune_boost(char *st_name, int boost)
 {
 	int ret = 0;
