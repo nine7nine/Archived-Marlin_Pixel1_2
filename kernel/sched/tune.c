@@ -28,11 +28,7 @@ extern struct reciprocal_value schedtune_spc_rdiv;
 struct target_nrg schedtune_target_nrg;
 
 #ifdef CONFIG_DYNAMIC_STUNE_BOOST
-#ifdef CONFIG_BOOXBOX
 #define DYNAMIC_BOOST_SLOTS_COUNT 7
-#else
-#define DYNAMIC_BOOST_SLOTS_COUNT 5
-#endif /* CONFIG_BOOXBOX */
 static DEFINE_MUTEX(boost_slot_mutex);
 static DEFINE_MUTEX(stune_boost_mutex);
 static struct schedtune *getSchedtune(char *st_name);
@@ -265,11 +261,7 @@ schedtune_accept_deltas(int nrg_delta, int cap_delta,
  *    value
  */
 
-#ifdef CONFIG_BOOSTBOX
 #define BOOSTGROUPS_COUNT 7
-#else
-#define BOOSTGROUPS_COUNT 5
-#endif  /* CONFIG_BOOSTBOX */
 
 /* Array of configured boostgroups */
 static struct schedtune *allocated_group[BOOSTGROUPS_COUNT] = {
@@ -1128,10 +1120,8 @@ static int _do_stune_unboost(struct schedtune *st, int boost, int *slot)
 	if (ret) {
 		return -EINVAL;
 	}
-	/* Find next largest active boost or reset to default */
-	boost = max_active_boost(st);
 
-	/* Do unbooost if new value is less than current */
+	/* Boost if new value is less than current */
 	mutex_lock(&stune_boost_mutex);
 	if (boost < st->boost)
 		ret = dynamic_boost(st, boost);

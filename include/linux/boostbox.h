@@ -18,18 +18,14 @@
 #define _BOOSTBOX_H_
 
 #ifdef CONFIG_BOOSTBOX
-void boostbox_rt_kick(void);
 void boostbox_gfx_kick(void);
-void boostbox_top_app_kick(void);
+void boostbox_idle_boost(void);
 void boostbox_kick_max(unsigned int duration_ms);
 #else
-static inline void boostbox_rt_kick(void)
-{
-}
 static inline void boostbox_gfx_kick(void)
 {
 }
-static inline void boostbox_top_app_kick(void)
+static inline void boostbox_idle_boost(void)
 {
 }
 static inline void boostbox_kick_max(unsigned int duration_ms)
