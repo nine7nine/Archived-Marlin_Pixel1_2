@@ -71,9 +71,8 @@ void arch_cpu_idle(void)
 /*
  * Release a thread_info structure
  */
-void arch_release_thread_stack(unsigned long *stack)
+void arch_release_thread_info(struct thread_info *info)
 {
-	struct thread_info *info = (void *)stack;
 	struct single_step_state *step_state = info->step_state;
 
 	if (step_state) {
