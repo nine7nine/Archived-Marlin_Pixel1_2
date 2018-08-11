@@ -284,7 +284,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 		const struct cred *cred = current_cred();
 
 		struct sdcardfs_name_data buffer = {
-			.ctx.actor = sdcardfs_name_match,
+			.ctx.actor = (void *)sdcardfs_name_match,
 			.to_find = name,
 			.name = __getname(),
 			.found = false,
