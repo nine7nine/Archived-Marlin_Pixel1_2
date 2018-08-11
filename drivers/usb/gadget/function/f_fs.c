@@ -1572,7 +1572,7 @@ static void ffs_data_put(struct ffs_data *ffs)
 		pr_info("%s(): freeing\n", __func__);
 		ffs_data_clear(ffs);
 		BUG_ON(waitqueue_active(&ffs->ev.waitq) ||
-		       swaitqueue_active(&ffs->ep0req_completion.wait));
+		       waitqueue_active(&ffs->ep0req_completion.wait));
 		kfree(ffs->dev_name);
 		kfree(ffs);
 	}
@@ -2911,8 +2911,8 @@ static int _ffs_func_bind(struct usb_configuration *c,
 	struct ffs_data *ffs = func->ffs;
 
 	const int full = !!func->ffs->fs_descs_count;
-	const int high = func->ffs->hs_descs_count;
-	const int super = func->ffs->ss_descs_count;
+	const int high = !!func->ffs->hs_descs_count;
+	const int super = !!func->ffs->ss_descs_count;
 
 	int fs_len, hs_len, ss_len, ret, i;
 
@@ -3037,7 +3037,7 @@ static int _ffs_func_bind(struct usb_configuration *c,
 		goto error;
 
 	func->function.os_desc_table = vla_ptr(vlabuf, d, os_desc_table);
-	if (c->cdev->use_os_string) {
+	if (c->cdev->use_os_string)
 		for (i = 0; i < ffs->interfaces_count; ++i) {
 			struct usb_os_desc *desc;
 
@@ -3048,15 +3048,13 @@ static int _ffs_func_bind(struct usb_configuration *c,
 				vla_ptr(vlabuf, d, ext_compat) + i * 16;
 			INIT_LIST_HEAD(&desc->ext_prop);
 		}
-		ret = ffs_do_os_descs(ffs->ms_os_descs_count,
-				      vla_ptr(vlabuf, d, raw_descs) +
-				      fs_len + hs_len + ss_len,
-				      d_raw_descs__sz - fs_len - hs_len -
-				      ss_len,
-				      __ffs_func_bind_do_os_desc, func);
-		if (unlikely(ret < 0))
-			goto error;
-	}
+	ret = ffs_do_os_descs(ffs->ms_os_descs_count,
+			      vla_ptr(vlabuf, d, raw_descs) +
+			      fs_len + hs_len + ss_len,
+			      d_raw_descs__sz - fs_len - hs_len - ss_len,
+			      __ffs_func_bind_do_os_desc, func);
+	if (unlikely(ret < 0))
+		goto error;
 	func->function.os_desc_n =
 		c->cdev->use_os_string ? ffs->interfaces_count : 0;
 

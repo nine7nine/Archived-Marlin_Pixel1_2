@@ -631,11 +631,6 @@ static void diag_function_disable(struct usb_function *f)
 		dev->ch->priv_usb = NULL;
 }
 
-static void diag_free_func(struct usb_function *f)
-{
-	kfree(func_to_diag(f));
-}
-
 static int diag_function_set_alt(struct usb_function *f,
 		unsigned intf, unsigned alt)
 {
@@ -833,7 +828,6 @@ int diag_function_add(struct usb_configuration *c, const char *name,
 	dev->function.unbind = diag_function_unbind;
 	dev->function.set_alt = diag_function_set_alt;
 	dev->function.disable = diag_function_disable;
-	dev->function.free_func = diag_free_func;
 	kref_init(&dev->kref);
 	spin_lock_init(&dev->lock);
 	INIT_LIST_HEAD(&dev->read_pool);
