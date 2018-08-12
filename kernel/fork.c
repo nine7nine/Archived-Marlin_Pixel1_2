@@ -80,6 +80,7 @@
 #ifdef CONFIG_BOOSTBOX
 #include <linux/boostbox.h>
 #endif /* CONFIG_BOOSTOBX */
+#include <linux/devfreq_boost.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -1688,8 +1689,10 @@ long do_fork(unsigned long clone_flags,
 	/* Boost CPU to the max for when userspace launches an app. The duration
 	 * is user-defined, but 1000 ms by default.
 	 */
-	if (is_zygote_pid(current->pid))
+	if (is_zygote_pid(current->pid)) {
 		boostbox_kick_max(app_launch_boost_ms);
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1250);
+	}
 #endif
 
 	/*
