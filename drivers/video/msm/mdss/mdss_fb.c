@@ -59,6 +59,7 @@
 #ifdef CONFIG_BOOSTBOX
 #include <linux/boostbox.h>
 #endif /* CONFIG_BOOSTOBX */
+#include <linux/devfreq_boost.h>
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -4811,6 +4812,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		boostbox_gfx_kick();
 		boostbox_rt_kick();
 #endif /* CONFIG_BOOSTOBX */
+		devfreq_boost_kick(DEVFREQ_MSM_CPUBW);
 		ret = mdss_fb_atomic_commit_ioctl(info, argp, file);
 		break;
 
