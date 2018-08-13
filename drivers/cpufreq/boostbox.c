@@ -60,7 +60,7 @@ module_param(dsb_gfx_boost, uint, 0644);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 // boost cpu frequencies
-static int sx_lp_min_boost = 384000;
+static int sx_lp_min_boost = 825600;
 module_param(sx_lp_min_boost, uint, 0644);
 static int sx_perf_min_boost = 384000;
 module_param(sx_perf_min_boost, uint, 0644);
