@@ -471,6 +471,7 @@ CONFIG_ARM64_SW_TTBR0_PAN=y
 
 # GCC Link-Time Optimization
 CONFIG_LTO=y
+CONFIG_LTO_CP_CLONE=y
 
 #
 # ARMv8.1 architectural features
