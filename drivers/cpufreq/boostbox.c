@@ -43,20 +43,20 @@ unsigned int audio;
 /* Schedtune "floor" values */
 static int dsb_top_app_floor = 0;
 module_param(dsb_top_app_floor, uint, 0644);
-static int dsb_gfx_floor = 0;
+static int dsb_gfx_floor = 15;
 module_param(dsb_gfx_floor, uint, 0644);
-static int dsb_rt_floor = 0;
+static int dsb_rt_floor = 30;
 module_param(dsb_rt_floor, uint, 0644);
 
 /* Schedtune "boost" values  */
-static int dsb_max_boost = 40;
+static int dsb_max_boost = 50;
 module_param(dsb_max_boost, uint, 0644);
-static int dsb_top_app_boost = 30;
+static int dsb_top_app_boost = 40;
 module_param(dsb_top_app_boost, uint, 0644);
-static int dsb_gfx_boost = 20;
-module_param(dsb_gfx_boost, uint, 0644);
-static int dsb_rt_boost = 20;
+static int dsb_rt_boost = 35;
 module_param(dsb_rt_boost, uint, 0644);
+static int dsb_gfx_boost = 25;
+module_param(dsb_gfx_boost, uint, 0644);
 #endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 // boost cpu frequencies
@@ -68,12 +68,12 @@ module_param(sx_perf_min_boost, uint, 0644);
 static int sx_gfx_boost_ms = 64;
 static int sx_wake_boost_ms = 1000;
 module_param(sx_wake_boost_ms, uint, 0644);
-static int sx_app_launch_boost_ms = 1000;
+static int sx_app_launch_boost_ms = 1500;
 module_param(sx_app_launch_boost_ms, uint, 0644);
-static int sx_top_app_boost_ms = 1000;
-module_param(sx_top_app_boost_ms, uint, 0644);
-static int sx_rt_boost_ms = 1000;
+static int sx_rt_boost_ms = 1800;
 module_param(sx_rt_boost_ms, uint, 0644);
+static int sx_top_app_boost_ms = 120;
+module_param(sx_top_app_boost_ms, uint, 0644);
 
 struct boost_drv {
 	struct workqueue_struct *wq;
