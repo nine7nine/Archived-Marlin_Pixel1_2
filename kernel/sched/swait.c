@@ -42,7 +42,7 @@ void swake_up_all_locked(struct swait_queue_head *q)
 		list_del_init(&curr->task_list);
 		wakes++;
 	}
-	WARN_ON(wakes > 2);
+	//WARN_ON(wakes > 2);
 }
 EXPORT_SYMBOL(swake_up_all_locked);
 
