@@ -72,19 +72,6 @@ int suid_dumpable = 0;
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
-#ifdef CONFIG_BOOSTBOX
-#define ZYGOTE32_BIN	"/system/bin/app_process32"
-#define ZYGOTE64_BIN	"/system/bin/app_process64"
-static atomic_t zygote32_pid;
-static atomic_t zygote64_pid;
-
-bool is_zygote_pid(pid_t pid)
-{
-	return atomic_read(&zygote32_pid) == pid ||
-		atomic_read(&zygote64_pid) == pid;
-}
-#endif /* CONFIG_BOOSTOBX */
-
 void __register_binfmt(struct linux_binfmt * fmt, int insert)
 {
 	BUG_ON(!fmt);
@@ -1578,15 +1565,6 @@ static int do_execve_common(struct filename *filename,
 	retval = exec_binprm(bprm);
 	if (retval < 0)
 		goto out;
-
-#ifdef CONFIG_BOOSTBOX
-	if (capable(CAP_SYS_ADMIN)) {
-		if (unlikely(!strcmp(filename->name, ZYGOTE32_BIN)))
-			atomic_set(&zygote32_pid, current->pid);
-		else if (unlikely(!strcmp(filename->name, ZYGOTE64_BIN)))
-			atomic_set(&zygote64_pid, current->pid);
-	}
-#endif /* CONFIG_BOOSTOBX */
 
 	/* execve succeeded */
 	current->fs->in_exec = 0;

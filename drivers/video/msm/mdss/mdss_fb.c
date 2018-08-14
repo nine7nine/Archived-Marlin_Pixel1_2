@@ -56,10 +56,6 @@
 #include "mdss_smmu.h"
 #include "mdss_mdp.h"
 
-#ifdef CONFIG_BOOSTBOX
-#include <linux/boostbox.h>
-#endif /* CONFIG_BOOSTOBX */
-
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
 #else
@@ -4821,13 +4817,6 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 
 	case MSMFB_ATOMIC_COMMIT:
-#ifdef CONFIG_BOOSTBOX
-#ifdef CONFIG_BOOSTBOX
-		boostbox_top_app_kick();
-		boostbox_gfx_kick();
-		boostbox_rt_kick();
-#endif /* CONFIG_BOOSTOBX */
-#endif /* CONFIG_BOOSTOBX */
 		ret = mdss_fb_atomic_commit_ioctl(info, argp, file);
 		break;
 

@@ -258,42 +258,6 @@ config CPU_FREQ_GOV_SCHEDUTIL
 
 	  If in doubt, say N.
 
-config BOOSTBOX
-	bool "Boostbox"
-	help
-	  Boosts the CPU on touchscreen and touchpad input, and allows for
-	  boosting on other custom events, mainly which is intended to be for
-	  boosting when there is a new frame ready to be rendered to the
-	  display. The boost frequencies for this driver should be set so that
-	  frame drops are near-zero at the boosted frequencies and power
-	  consumption is minimized at said frequency combination.
-
-	  NOTE: This driver is based on SultanXDA's cpu_input_boost driver,
-          which was described in the 1st paragragh... However, this driver has
-          been modified/extended and utilizes Dynamic Stune Boost + other
-	  custom events. It also uses a different schedtune boosting scheme.
-	  Boostbox has more dynamic control of SchedTune groups and utilizes 7
-	  groups, rather than 5. In addtion to DSBv3 hooks, I've added module
-	  parameters for runtime configuration/testing.
-
-config BOOSTBOX
-	bool "Boostbox"
-	help
-	  Boosts the CPU on touchscreen and touchpad input, and allows for
-	  boosting on other custom events, mainly which is intended to be for
-	  boosting when there is a new frame ready to be rendered to the
-	  display. The boost frequencies for this driver should be set so that
-	  frame drops are near-zero at the boosted frequencies and power
-	  consumption is minimized at said frequency combination.
-
-	  NOTE: This driver is based on SultanXDA's cpu_input_boost driver,
-	  which was described in the 1st paragragh... However, this driver has
-	  been modified/extended and utilizes Dynamic Stune Boost + other
-	  custom events. It also uses a different schedtune boosting scheme.
-	  Boostbox has more dynamic control of SchedTune groups and utilizes 7
-	  groups, rather than 5. In addtion to DSBv3 hooks, I've added module
-	  parameters for runtime configuration/testing.
-
 comment "CPU frequency scaling drivers"
 
 config CPU_BOOST
