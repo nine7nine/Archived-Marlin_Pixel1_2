@@ -44,7 +44,7 @@ static ssize_t opal_msglog_read(struct file *file, struct kobject *kobj,
 	if (!mc)
 		return -ENODEV;
 
-	out_pos = be32_to_cpu(ACCESS_ONCE(mc->out_pos));
+	out_pos = be32_to_cpu(READ_ONCE(mc->out_pos));
 
 	/* Now we've read out_pos, put a barrier in before reading the new
 	 * data it points to in conbuf. */

@@ -204,7 +204,7 @@ static void drain_mcelog_buffer(void)
 {
 	unsigned int next, i, prev = 0;
 
-	next = ACCESS_ONCE(mcelog.next);
+	next = READ_ONCE(mcelog.next);
 
 	do {
 		struct mce *m;

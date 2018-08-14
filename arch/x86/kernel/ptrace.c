@@ -1475,7 +1475,7 @@ unsigned long syscall_trace_enter_phase1(struct pt_regs *regs, u32 arch)
 
 	BUG_ON(regs != task_pt_regs(current));
 
-	work = ACCESS_ONCE(current_thread_info()->flags) &
+	work = READ_ONCE(current_thread_info()->flags) &
 		_TIF_WORK_SYSCALL_ENTRY;
 
 	/*
@@ -1557,7 +1557,7 @@ long syscall_trace_enter_phase2(struct pt_regs *regs, u32 arch,
 				unsigned long phase1_result)
 {
 	long ret = 0;
-	u32 work = ACCESS_ONCE(current_thread_info()->flags) &
+	u32 work = READ_ONCE(current_thread_info()->flags) &
 		_TIF_WORK_SYSCALL_ENTRY;
 
 	BUG_ON(regs != task_pt_regs(current));

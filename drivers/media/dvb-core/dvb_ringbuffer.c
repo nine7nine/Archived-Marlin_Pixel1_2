@@ -79,7 +79,7 @@ ssize_t dvb_ringbuffer_free(struct dvb_ringbuffer *rbuf)
 	 * dvb_ringbuffer_read_user(), dvb_ringbuffer_flush(),
 	 * or dvb_ringbuffer_reset()
 	 */
-	free = ACCESS_ONCE(rbuf->pread) - rbuf->pwrite;
+	free = READ_ONCE(rbuf->pread) - rbuf->pwrite;
 	if (free <= 0)
 		free += rbuf->size;
 	return free-1;

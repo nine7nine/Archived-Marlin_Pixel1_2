@@ -329,7 +329,7 @@ static void __cache_size_refresh(void)
 	BUG_ON(!mutex_is_locked(&dm_bufio_clients_lock));
 	BUG_ON(dm_bufio_client_count < 0);
 
-	dm_bufio_cache_size_latch = ACCESS_ONCE(dm_bufio_cache_size);
+	dm_bufio_cache_size_latch = READ_ONCE(dm_bufio_cache_size);
 
 	/*
 	 * Use default if set to 0 and report the actual cache size used.
@@ -919,7 +919,7 @@ static void __get_memory_limit(struct dm_bufio_client *c,
 {
 	unsigned long buffers;
 
-	if (unlikely(ACCESS_ONCE(dm_bufio_cache_size) != dm_bufio_cache_size_latch)) {
+	if (unlikely(READ_ONCE(dm_bufio_cache_size) != dm_bufio_cache_size_latch)) {
 		if (mutex_trylock(&dm_bufio_clients_lock)) {
 			__cache_size_refresh();
 			mutex_unlock(&dm_bufio_clients_lock);
@@ -1522,7 +1522,7 @@ static bool __try_evict_buffer(struct dm_buffer *b, gfp_t gfp)
 
 static unsigned get_retain_buffers(struct dm_bufio_client *c)
 {
-        unsigned retain_bytes = ACCESS_ONCE(dm_bufio_retain_bytes);
+        unsigned retain_bytes = READ_ONCE(dm_bufio_retain_bytes);
         return retain_bytes / c->block_size;
 }
 
@@ -1569,7 +1569,7 @@ dm_bufio_shrink_count(struct shrinker *shrink, struct shrink_control *sc)
 {
 	struct dm_bufio_client *c = container_of(shrink, struct dm_bufio_client, shrinker);
 
-	return ACCESS_ONCE(c->n_buffers[LIST_CLEAN]) + ACCESS_ONCE(c->n_buffers[LIST_DIRTY]);
+	return READ_ONCE(c->n_buffers[LIST_CLEAN]) + READ_ONCE(c->n_buffers[LIST_DIRTY]);
 }
 
 /*
@@ -1734,7 +1734,7 @@ EXPORT_SYMBOL_GPL(dm_bufio_client_destroy);
 
 static unsigned get_max_age_hz(void)
 {
-	unsigned max_age = ACCESS_ONCE(dm_bufio_max_age);
+	unsigned max_age = READ_ONCE(dm_bufio_max_age);
 
 	if (max_age > UINT_MAX / HZ)
 		max_age = UINT_MAX / HZ;

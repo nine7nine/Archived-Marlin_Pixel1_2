@@ -108,7 +108,7 @@ int line6_pcm_acquire(struct snd_line6_pcm *line6pcm, int channels)
 	int err;
 
 	do {
-		flags_old = ACCESS_ONCE(line6pcm->flags);
+		flags_old = READ_ONCE(line6pcm->flags);
 		flags_new = flags_old | channels;
 	} while (cmpxchg(&line6pcm->flags, flags_old, flags_new) != flags_old);
 
@@ -201,7 +201,7 @@ int line6_pcm_release(struct snd_line6_pcm *line6pcm, int channels)
 	unsigned long flags_old, flags_new;
 
 	do {
-		flags_old = ACCESS_ONCE(line6pcm->flags);
+		flags_old = READ_ONCE(line6pcm->flags);
 		flags_new = flags_old & ~channels;
 	} while (cmpxchg(&line6pcm->flags, flags_old, flags_new) != flags_old);
 

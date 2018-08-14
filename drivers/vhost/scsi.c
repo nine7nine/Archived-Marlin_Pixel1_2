@@ -1089,7 +1089,7 @@ vhost_scsi_handle_vq(struct vhost_scsi *vs, struct vhost_virtqueue *vq)
 			continue;
 		}
 
-		tpg = ACCESS_ONCE(vs_tpg[*target]);
+		tpg = READ_ONCE(vs_tpg[*target]);
 
 		/* Target does not exist, fail the request */
 		if (unlikely(!tpg)) {

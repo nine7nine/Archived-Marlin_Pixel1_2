@@ -205,7 +205,7 @@ void update_perf_cpu_limits(void)
 
 	tmp *= sysctl_perf_cpu_time_max_percent;
 	do_div(tmp, 100);
-	ACCESS_ONCE(perf_sample_allowed_ns) = tmp;
+	WRITE_ONCE(perf_sample_allowed_ns, tmp);
 }
 
 static int perf_rotate_context(struct perf_cpu_context *cpuctx);
@@ -253,7 +253,7 @@ static DEFINE_PER_CPU(u64, running_sample_length);
 
 static void perf_duration_warn(struct irq_work *w)
 {
-	u64 allowed_ns = ACCESS_ONCE(perf_sample_allowed_ns);
+	u64 allowed_ns = READ_ONCE(perf_sample_allowed_ns);
 	u64 avg_local_sample_len;
 	u64 local_samples_len;
 
@@ -271,7 +271,7 @@ static DEFINE_IRQ_WORK(perf_duration_work, perf_duration_warn);
 
 void perf_sample_event_took(u64 sample_len_ns)
 {
-	u64 allowed_ns = ACCESS_ONCE(perf_sample_allowed_ns);
+	u64 allowed_ns = READ_ONCE(perf_sample_allowed_ns);
 	u64 avg_local_sample_len;
 	u64 local_samples_len;
 
@@ -945,7 +945,7 @@ static struct perf_event_context *perf_event_ctx_lock(struct perf_event *event)
 
 again:
 	rcu_read_lock();
-	ctx = ACCESS_ONCE(event->ctx);
+	ctx = READ_ONCE(event->ctx);
 	if (!atomic_inc_not_zero(&ctx->refcount)) {
 		rcu_read_unlock();
 		goto again;
@@ -3496,7 +3496,7 @@ static void perf_remove_from_owner(struct perf_event *event)
 	struct task_struct *owner;
 
 	rcu_read_lock();
-	owner = ACCESS_ONCE(event->owner);
+	owner = READ_ONCE(event->owner);
 	/*
 	 * Matches the smp_wmb() in perf_event_exit_task(). If we observe
 	 * !owner it means the list deletion is complete and we can indeed
@@ -7430,7 +7430,7 @@ __perf_event_ctx_lock_double(struct perf_event *group_leader,
 
 again:
 	rcu_read_lock();
-	gctx = ACCESS_ONCE(group_leader->ctx);
+	gctx = READ_ONCE(group_leader->ctx);
 	if (!atomic_inc_not_zero(&gctx->refcount)) {
 		rcu_read_unlock();
 		goto again;

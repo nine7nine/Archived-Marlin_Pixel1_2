@@ -189,8 +189,8 @@ static ssize_t altr_sdr_mc_err_inject_write(struct file *file,
 	 * The ACCESS_ONCE macros and printk are used to prevent the
 	 * the compiler optimizing these reads out.
 	 */
-	reg = ACCESS_ONCE(ptemp[0]);
-	read_reg = ACCESS_ONCE(ptemp[1]);
+	reg = READ_ONCE(ptemp[0]);
+	read_reg = READ_ONCE(ptemp[1]);
 	/* Force Read */
 	rmb();
 

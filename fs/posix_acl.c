@@ -37,7 +37,7 @@ EXPORT_SYMBOL(acl_by_type);
 struct posix_acl *get_cached_acl(struct inode *inode, int type)
 {
 	struct posix_acl **p = acl_by_type(inode, type);
-	struct posix_acl *acl = ACCESS_ONCE(*p);
+	struct posix_acl *acl = READ_ONCE(*p);
 	if (acl) {
 		spin_lock(&inode->i_lock);
 		acl = *p;

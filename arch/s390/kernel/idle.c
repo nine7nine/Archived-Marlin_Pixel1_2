@@ -55,11 +55,11 @@ static ssize_t show_idle_count(struct device *dev,
 	unsigned int sequence;
 
 	do {
-		sequence = ACCESS_ONCE(idle->sequence);
-		idle_count = ACCESS_ONCE(idle->idle_count);
-		if (ACCESS_ONCE(idle->clock_idle_enter))
+		sequence = READ_ONCE(idle->sequence);
+		idle_count = READ_ONCE(idle->idle_count);
+		if (READ_ONCE(idle->clock_idle_enter))
 			idle_count++;
-	} while ((sequence & 1) || (ACCESS_ONCE(idle->sequence) != sequence));
+	} while ((sequence & 1) || (READ_ONCE(idle->sequence) != sequence));
 	return sprintf(buf, "%llu\n", idle_count);
 }
 DEVICE_ATTR(idle_count, 0444, show_idle_count, NULL);
@@ -73,11 +73,11 @@ static ssize_t show_idle_time(struct device *dev,
 
 	do {
 		now = get_tod_clock();
-		sequence = ACCESS_ONCE(idle->sequence);
-		idle_time = ACCESS_ONCE(idle->idle_time);
-		idle_enter = ACCESS_ONCE(idle->clock_idle_enter);
-		idle_exit = ACCESS_ONCE(idle->clock_idle_exit);
-	} while ((sequence & 1) || (ACCESS_ONCE(idle->sequence) != sequence));
+		sequence = READ_ONCE(idle->sequence);
+		idle_time = READ_ONCE(idle->idle_time);
+		idle_enter = READ_ONCE(idle->clock_idle_enter);
+		idle_exit = READ_ONCE(idle->clock_idle_exit);
+	} while ((sequence & 1) || (READ_ONCE(idle->sequence) != sequence));
 	idle_time += idle_enter ? ((idle_exit ? : now) - idle_enter) : 0;
 	return sprintf(buf, "%llu\n", idle_time >> 12);
 }
@@ -91,10 +91,10 @@ cputime64_t arch_cpu_idle_time(int cpu)
 
 	do {
 		now = get_tod_clock();
-		sequence = ACCESS_ONCE(idle->sequence);
-		idle_enter = ACCESS_ONCE(idle->clock_idle_enter);
-		idle_exit = ACCESS_ONCE(idle->clock_idle_exit);
-	} while ((sequence & 1) || (ACCESS_ONCE(idle->sequence) != sequence));
+		sequence = READ_ONCE(idle->sequence);
+		idle_enter = READ_ONCE(idle->clock_idle_enter);
+		idle_exit = READ_ONCE(idle->clock_idle_exit);
+	} while ((sequence & 1) || (READ_ONCE(idle->sequence) != sequence));
 	return idle_enter ? ((idle_exit ?: now) - idle_enter) : 0;
 }
 

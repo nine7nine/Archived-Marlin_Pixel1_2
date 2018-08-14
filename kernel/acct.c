@@ -130,7 +130,7 @@ static struct bsd_acct_struct *acct_get(struct pid_namespace *ns)
 again:
 	smp_rmb();
 	rcu_read_lock();
-	res = ACCESS_ONCE(ns->bacct);
+	res = READ_ONCE(ns->bacct);
 	if (!res) {
 		rcu_read_unlock();
 		return NULL;

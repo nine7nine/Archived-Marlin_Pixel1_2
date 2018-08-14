@@ -106,7 +106,7 @@ bool osq_lock(struct optimistic_spin_queue *lock)
 
 	prev = decode_cpu(old);
 	node->prev = prev;
-	ACCESS_ONCE(prev->next) = node;
+	WRITE_ONCE(prev->next, node);
 
 	/*
 	 * Normally @prev is untouchable after the above store; because at that

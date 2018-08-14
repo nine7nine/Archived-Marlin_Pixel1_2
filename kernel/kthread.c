@@ -63,7 +63,7 @@ static inline struct kthread *to_kthread(struct task_struct *k)
 
 static struct kthread *to_live_kthread(struct task_struct *k)
 {
-	struct completion *vfork = ACCESS_ONCE(k->vfork_done);
+	struct completion *vfork = READ_ONCE(k->vfork_done);
 	if (likely(vfork) && try_get_task_stack(k))
 		return __to_kthread(vfork);
 	return NULL;

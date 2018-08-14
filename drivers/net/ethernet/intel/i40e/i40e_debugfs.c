@@ -481,7 +481,7 @@ static void i40e_dbg_dump_vsi_seid(struct i40e_pf *pf, int seid)
 		 vsi->rx_buf_failed, vsi->rx_page_failed);
 	rcu_read_lock();
 	for (i = 0; i < vsi->num_queue_pairs; i++) {
-		struct i40e_ring *rx_ring = ACCESS_ONCE(vsi->rx_rings[i]);
+		struct i40e_ring *rx_ring = READ_ONCE(vsi->rx_rings[i]);
 		if (!rx_ring)
 			continue;
 
@@ -529,7 +529,7 @@ static void i40e_dbg_dump_vsi_seid(struct i40e_pf *pf, int seid)
 			 rx_ring->q_vector);
 	}
 	for (i = 0; i < vsi->num_queue_pairs; i++) {
-		struct i40e_ring *tx_ring = ACCESS_ONCE(vsi->tx_rings[i]);
+		struct i40e_ring *tx_ring = READ_ONCE(vsi->tx_rings[i]);
 		if (!tx_ring)
 			continue;
 

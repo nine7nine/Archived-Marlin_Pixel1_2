@@ -508,7 +508,7 @@ static int kiocb_cancel(struct kiocb *kiocb)
 	 * actually has a cancel function, hence the cmpxchg()
 	 */
 
-	cancel = ACCESS_ONCE(kiocb->ki_cancel);
+	cancel = READ_ONCE(kiocb->ki_cancel);
 	do {
 		if (!cancel || cancel == KIOCB_CANCELLED)
 			return -EINVAL;

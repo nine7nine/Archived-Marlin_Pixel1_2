@@ -221,7 +221,7 @@ static int tc2_pm_wait_for_powerdown(unsigned int cpu, unsigned int cluster)
 		 * Only examine the hardware state if the target CPU has
 		 * caught up at least as far as tc2_pm_down():
 		 */
-		if (ACCESS_ONCE(tc2_pm_use_count[cpu][cluster]) == 0) {
+		if (READ_ONCE(tc2_pm_use_count[cpu][cluster]) == 0) {
 			pr_debug("%s(cpu=%u, cluster=%u): RESET_CTRL = 0x%08X\n",
 				 __func__, cpu, cluster,
 				 readl_relaxed(scc + RESET_CTRL));

@@ -240,7 +240,7 @@ static unsigned reserved_rq_based_ios = RESERVED_REQUEST_BASED_IOS;
 static unsigned __dm_get_reserved_ios(unsigned *reserved_ios,
 				      unsigned def, unsigned max)
 {
-	unsigned ios = ACCESS_ONCE(*reserved_ios);
+	unsigned ios = READ_ONCE(*reserved_ios);
 	unsigned modified_ios = 0;
 
 	if (!ios)

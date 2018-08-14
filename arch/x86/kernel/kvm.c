@@ -611,7 +611,7 @@ static inline void check_zero(void)
 	u8 ret;
 	u8 old;
 
-	old = ACCESS_ONCE(zero_stats);
+	old = READ_ONCE(zero_stats);
 	if (unlikely(old)) {
 		ret = cmpxchg(&zero_stats, old, 0);
 		/* This ensures only one fellow resets the stat */
@@ -774,7 +774,7 @@ __visible void kvm_lock_spinning(struct arch_spinlock *lock, __ticket_t want)
 	 * check again make sure it didn't become free while
 	 * we weren't looking.
 	 */
-	if (ACCESS_ONCE(lock->tickets.head) == want) {
+	if (READ_ONCE(lock->tickets.head) == want) {
 		add_stats(TAKEN_SLOW_PICKUP, 1);
 		goto out;
 	}
@@ -805,8 +805,8 @@ static void kvm_unlock_kick(struct arch_spinlock *lock, __ticket_t ticket)
 	add_stats(RELEASED_SLOW, 1);
 	for_each_cpu(cpu, &waiting_cpus) {
 		const struct kvm_lock_waiting *w = &per_cpu(klock_waiting, cpu);
-		if (ACCESS_ONCE(w->lock) == lock &&
-		    ACCESS_ONCE(w->want) == ticket) {
+		if (READ_ONCE(w->lock) == lock &&
+		    READ_ONCE(w->want) == ticket) {
 			add_stats(RELEASED_SLOW_KICKED, 1);
 			kvm_kick_cpu(cpu);
 			break;

@@ -74,7 +74,7 @@ static void scs_output_trigger(struct snd_rawmidi_substream *stream, int up)
 {
 	struct scs *scs = stream->rmidi->private_data;
 
-	ACCESS_ONCE(scs->output) = up ? stream : NULL;
+	WRITE_ONCE(scs->output, up ? stream : NULL);
 	if (up) {
 		scs->output_idle = false;
 		tasklet_schedule(&scs->tasklet);
@@ -139,7 +139,7 @@ static void scs_output_tasklet(unsigned long data)
 	if (scs->transaction_running)
 		return;
 
-	stream = ACCESS_ONCE(scs->output);
+	stream = READ_ONCE(scs->output);
 	if (!stream) {
 		scs->output_idle = true;
 		wake_up(&scs->idle_wait);
@@ -257,7 +257,7 @@ static void scs_input_trigger(struct snd_rawmidi_substream *stream, int up)
 {
 	struct scs *scs = stream->rmidi->private_data;
 
-	ACCESS_ONCE(scs->input) = up ? stream : NULL;
+	WRITE_ONCE(scs->input, up ? stream : NULL);
 }
 
 static void scs_input_escaped_byte(struct snd_rawmidi_substream *stream,
@@ -353,7 +353,7 @@ static void handle_hss(struct fw_card *card, struct fw_request *request,
 	}
 
 	if (length >= 1) {
-		stream = ACCESS_ONCE(scs->input);
+		stream = READ_ONCE(scs->input);
 		if (stream)
 			scs_input_packet(scs, stream, data, length);
 	}
@@ -473,8 +473,8 @@ static void scs_remove(struct fw_unit *unit)
 
 	snd_card_disconnect(scs->card);
 
-	ACCESS_ONCE(scs->output) = NULL;
-	ACCESS_ONCE(scs->input) = NULL;
+	WRITE_ONCE(scs->output, NULL);
+	WRITE_ONCE(scs->input, NULL);
 
 	wait_event(scs->idle_wait, scs->output_idle);
 

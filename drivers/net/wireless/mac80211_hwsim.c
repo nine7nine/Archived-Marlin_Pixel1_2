@@ -1127,7 +1127,7 @@ static void mac80211_hwsim_tx(struct ieee80211_hw *hw,
 	mac80211_hwsim_monitor_rx(hw, skb, channel);
 
 	/* wmediumd mode check */
-	_portid = ACCESS_ONCE(wmediumd_portid);
+	_portid = READ_ONCE(wmediumd_portid);
 
 	if (_portid)
 		return mac80211_hwsim_tx_frame_nl(hw, skb, _portid);
@@ -1223,7 +1223,7 @@ static void mac80211_hwsim_tx_frame(struct ieee80211_hw *hw,
 				    struct sk_buff *skb,
 				    struct ieee80211_channel *chan)
 {
-	u32 _pid = ACCESS_ONCE(wmediumd_portid);
+	u32 _pid = READ_ONCE(wmediumd_portid);
 
 	if (hw->flags & IEEE80211_HW_SUPPORTS_RC_TABLE) {
 		struct ieee80211_tx_info *txi = IEEE80211_SKB_CB(skb);

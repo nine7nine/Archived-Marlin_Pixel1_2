@@ -773,8 +773,8 @@ static void tcp_update_pacing_rate(struct sock *sk)
 	 * without any lock. We want to make sure compiler wont store
 	 * intermediate values in this location.
 	 */
-	ACCESS_ONCE(sk->sk_pacing_rate) = min_t(u64, rate,
-						sk->sk_max_pacing_rate);
+	WRITE_ONCE(sk->sk_pacing_rate,
+		   min_t(u64, rate, sk->sk_max_pacing_rate));
 }
 
 /* Calculate rto without backoff.  This is the second half of Van Jacobson's

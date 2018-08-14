@@ -96,7 +96,7 @@ static void isight_update_pointers(struct isight *isight, unsigned int count)
 	ptr += count;
 	if (ptr >= runtime->buffer_size)
 		ptr -= runtime->buffer_size;
-	ACCESS_ONCE(isight->buffer_pointer) = ptr;
+	WRITE_ONCE(isight->buffer_pointer, ptr);
 
 	isight->period_counter += count;
 	if (isight->period_counter >= runtime->period_size) {
@@ -111,7 +111,7 @@ static void isight_samples(struct isight *isight,
 	struct snd_pcm_runtime *runtime;
 	unsigned int count1;
 
-	if (!ACCESS_ONCE(isight->pcm_running))
+	if (!READ_ONCE(isight->pcm_running))
 		return;
 
 	runtime = isight->pcm->runtime;
@@ -133,7 +133,7 @@ static void isight_pcm_abort(struct isight *isight)
 {
 	unsigned long flags;
 
-	if (ACCESS_ONCE(isight->pcm_active)) {
+	if (READ_ONCE(isight->pcm_active)) {
 		snd_pcm_stream_lock_irqsave(isight->pcm, flags);
 		if (snd_pcm_running(isight->pcm))
 			snd_pcm_stop(isight->pcm, SNDRV_PCM_STATE_XRUN);
@@ -147,7 +147,7 @@ static void isight_dropped_samples(struct isight *isight, unsigned int total)
 	u32 dropped;
 	unsigned int count1;
 
-	if (!ACCESS_ONCE(isight->pcm_running))
+	if (!READ_ONCE(isight->pcm_running))
 		return;
 
 	runtime = isight->pcm->runtime;
@@ -299,7 +299,7 @@ static int isight_hw_params(struct snd_pcm_substream *substream,
 	if (err < 0)
 		return err;
 
-	ACCESS_ONCE(isight->pcm_active) = true;
+	WRITE_ONCE(isight->pcm_active, true);
 
 	return 0;
 }
@@ -337,7 +337,7 @@ static int isight_hw_free(struct snd_pcm_substream *substream)
 {
 	struct isight *isight = substream->private_data;
 
-	ACCESS_ONCE(isight->pcm_active) = false;
+	WRITE_ONCE(isight->pcm_active, false);
 
 	mutex_lock(&isight->mutex);
 	isight_stop_streaming(isight);
@@ -430,10 +430,10 @@ static int isight_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		ACCESS_ONCE(isight->pcm_running) = true;
+		WRITE_ONCE(isight->pcm_running, true);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
-		ACCESS_ONCE(isight->pcm_running) = false;
+		WRITE_ONCE(isight->pcm_running, false);
 		break;
 	default:
 		return -EINVAL;
@@ -445,7 +445,7 @@ static snd_pcm_uframes_t isight_pointer(struct snd_pcm_substream *substream)
 {
 	struct isight *isight = substream->private_data;
 
-	return ACCESS_ONCE(isight->buffer_pointer);
+	return READ_ONCE(isight->buffer_pointer);
 }
 
 static int isight_create_pcm(struct isight *isight)

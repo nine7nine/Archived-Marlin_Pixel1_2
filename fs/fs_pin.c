@@ -39,7 +39,7 @@ void mnt_pin_kill(struct mount *m)
 		struct hlist_node *p;
 		struct fs_pin *pin;
 		rcu_read_lock();
-		p = ACCESS_ONCE(m->mnt_pins.first);
+		p = READ_ONCE(m->mnt_pins.first);
 		if (!p) {
 			rcu_read_unlock();
 			break;
@@ -61,7 +61,7 @@ void sb_pin_kill(struct super_block *sb)
 		struct hlist_node *p;
 		struct fs_pin *pin;
 		rcu_read_lock();
-		p = ACCESS_ONCE(sb->s_pins.first);
+		p = READ_ONCE(sb->s_pins.first);
 		if (!p) {
 			rcu_read_unlock();
 			break;
