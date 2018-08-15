@@ -2923,8 +2923,7 @@ static int msm_compr_probe(struct snd_soc_platform *platform)
 	const char *qdsp_version;
 
 	pr_debug("%s\n", __func__);
-	pdata = (struct msm_compr_pdata *)
-			kzalloc(sizeof(*pdata), GFP_KERNEL);
+	pdata =	kzalloc(sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return -ENOMEM;
 

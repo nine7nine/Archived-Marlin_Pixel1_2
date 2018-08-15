@@ -650,9 +650,8 @@ static int ipa3_wwan_add_ul_flt_rule_to_ipa(void)
 	if (!param)
 		return -ENOMEM;
 
-	req = (struct ipa_fltr_installed_notif_req_msg_v01 *)
-		kzalloc(sizeof(struct ipa_fltr_installed_notif_req_msg_v01),
-			GFP_KERNEL);
+	req = kzalloc(sizeof(struct ipa_fltr_installed_notif_req_msg_v01),
+		      GFP_KERNEL);
 	if (!req) {
 		kfree(param);
 		return -ENOMEM;

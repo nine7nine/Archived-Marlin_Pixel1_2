@@ -2437,7 +2437,7 @@ int tspp_allocate_buffers(u32 dev, u32 channel_id, u32 count, u32 size,
 		channel->buffer_count++) {
 
 		/* allocate the descriptor */
-		struct tspp_mem_buffer *desc = (struct tspp_mem_buffer *)
+		struct tspp_mem_buffer *desc =
 			kmalloc(sizeof(struct tspp_mem_buffer), GFP_KERNEL);
 		if (!desc) {
 			pr_warn("%s: Can't allocate desc %i",

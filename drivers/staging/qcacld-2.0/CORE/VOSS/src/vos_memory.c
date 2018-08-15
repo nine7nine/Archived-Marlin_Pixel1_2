@@ -427,7 +427,7 @@ v_VOID_t *vos_mem_malloc_debug(v_SIZE_t size, const char *fileName,
 
    new_size = size + sizeof(struct s_vos_mem_struct) + 8;
    time_before_kmalloc = vos_timer_get_system_time();
-   memStruct = (struct s_vos_mem_struct*)kmalloc(new_size, flags);
+   memStruct = kmalloc(new_size, flags);
    /* If time taken by kmalloc is greater than
     * VOS_GET_MEMORY_TIME_THRESHOLD msec
     */
@@ -718,7 +718,7 @@ v_VOID_t * vos_mem_dma_malloc_debug( v_SIZE_t size, char* fileName, v_U32_t line
 
    new_size = size + sizeof(struct s_vos_mem_struct) + 8;
 
-   memStruct = (struct s_vos_mem_struct*)kmalloc(new_size,GFP_KERNEL);
+   memStruct = kmalloc(new_size,GFP_KERNEL);
 
    if(memStruct != NULL)
    {

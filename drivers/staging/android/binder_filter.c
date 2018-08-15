@@ -196,7 +196,7 @@ static char* bf_realloc(char* oldp, int new_size)
 		return NULL;
 	}
 
-	newp = (char*) kzalloc(new_size, GFP_KERNEL);
+	newp = kzalloc(new_size, GFP_KERNEL);
 	strncpy(newp, oldp, strlen(oldp));
 	kfree(oldp);
 	return newp;
@@ -209,7 +209,7 @@ static char* read_file(char *filename, int* success)
   char buf[1];
   int result_len = LARGE_BUFFER_SIZE;
   int leeway = 8;
-  char* result = (char*) kzalloc(result_len, GFP_KERNEL);
+  char* result = kzalloc(result_len, GFP_KERNEL);
   mm_segment_t old_fs = get_fs();
 
   strncpy(result, "\0", 1);
@@ -366,7 +366,7 @@ static void print_string(const char* buf, size_t data_size, int max_buffer_size)
 		len = max_buffer_size;
 	}
 
-	buffer = (char*) kzalloc(max_buffer_size*5+1, GFP_KERNEL);
+	buffer = kzalloc(max_buffer_size*5+1, GFP_KERNEL);
 	if (buffer == NULL) {
 		return;
 	}
@@ -503,12 +503,12 @@ static char* get_gps_user_value(char* user_gps_bytes)
 		return NULL;
 	}
 
-	user_gps_bytes_p = (char*) kzalloc(strlen(user_gps_bytes)+1, GFP_KERNEL);
+	user_gps_bytes_p = kzalloc(strlen(user_gps_bytes)+1, GFP_KERNEL);
 	strncpy(user_gps_bytes_p, user_gps_bytes, strlen(user_gps_bytes));
 	user_gps_bytes_p[strlen(user_gps_bytes_p)] = '\0';
 	//printk(KERN_INFO "BINDERFILTER: user string: {%s}\n", user_gps_bytes_p);
 
-	byte_array = (char*) kzalloc(16, GFP_KERNEL);
+	byte_array = kzalloc(16, GFP_KERNEL);
 	string_val = strsep(&user_gps_bytes_p, ".");
 	while (string_val != NULL && strcmp(string_val, "") != 0) {
 		if (kstrtol(string_val, 10, &long_val) != 0) {
@@ -741,7 +741,7 @@ static char* get_string_matching_buffer(char* buf, size_t data_size)
 		return NULL;
 	}
 
-	buffer = (char*) kzalloc(data_size+1, GFP_KERNEL);
+	buffer = kzalloc(data_size+1, GFP_KERNEL);
 	if (buffer == NULL) {
 		return NULL;
 	}
@@ -830,7 +830,7 @@ static void modify_arbitrary_message(char* ascii_buffer, char* user_buf, char* m
 
 	// printk(KERN_INFO "BINDERFILTER: modifying arbitrary message\n");
 
-	user_message = (char*) kzalloc(user_message_len+1, GFP_KERNEL);
+	user_message = kzalloc(user_message_len+1, GFP_KERNEL);
 	strncpy(user_message, message+starting_string_len, user_message_len);
 	user_message[strlen(user_message)] = '\0';
 
@@ -838,7 +838,7 @@ static void modify_arbitrary_message(char* ascii_buffer, char* user_buf, char* m
 	if (message_location != NULL) {
 
 		// 8 bit duplicated to 16 bit chars, hack-y but simple 
-		user_data = (char*) kzalloc(strlen(data) * 2 + 1, GFP_KERNEL);
+		user_data = kzalloc(strlen(data) * 2 + 1, GFP_KERNEL);
 		for (i=0; i<strlen(data)*2; i++) {
 			if (i%2) {
 				memset(user_data+i, 0, 1);
@@ -868,11 +868,11 @@ static void modify_camera_message(char* ascii_buffer, char* data)
 
 	//printk(KERN_INFO "BINDERFILTER: modifying camera message\n");
 
-	existing_file = (char*) kzalloc(strlen(data) + 25, GFP_KERNEL);
+	existing_file = kzalloc(strlen(data) + 25, GFP_KERNEL);
 	strcpy(existing_file, "/data/local/tmp/");
 	strcat(existing_file, data);
 
-	filepath = (char*) kzalloc(100, GFP_KERNEL);
+	filepath = kzalloc(100, GFP_KERNEL);
 	message_location = strstr(ascii_buffer, "/storage/emulated/0/Pictures/Facebook/");
 	if (message_location != NULL) {
 		// modify facebook picture
@@ -1006,7 +1006,7 @@ static void print_binder_transaction_data(char* data, size_t data_size, int euid
 	if (data_size < MAX_BUFFER_SIZE) {
 		size_copy = data_size;
 	}
-	buf_copy = (void*) kzalloc(size_copy+1, GFP_KERNEL);
+	buf_copy = kzalloc(size_copy+1, GFP_KERNEL);
 	if (buf_copy == NULL) {
 		return;
 	}
@@ -1051,8 +1051,8 @@ static void add_app_running_context(char* context_string_value)
 		e = e->next;
 	}	
 	
-	e = (struct app_context_entry*) kzalloc(sizeof(struct app_context_entry), GFP_KERNEL);
-	e->package_name = (char*) kzalloc(strlen(context_string_value)+1, GFP_KERNEL);
+	e = kzalloc(sizeof(struct app_context_entry), GFP_KERNEL);
+	e->package_name = kzalloc(strlen(context_string_value)+1, GFP_KERNEL);
 	strncpy(e->package_name, context_string_value, strlen(context_string_value));
 	e->package_name[strlen(e->package_name)] = '\0';
 	e->state = CONTEXT_STATE_UNKNOWN;
@@ -1108,10 +1108,9 @@ static void add_filter(struct bf_user_filter* filter)
 		return;
 	}
 
-	rule = (struct bf_filter_rule*) 
-						kzalloc(sizeof(struct bf_filter_rule), GFP_KERNEL);
-	rule->message = (char*) kzalloc(strlen(message)+1, GFP_KERNEL);
-	rule->data = (char*) kzalloc(strlen(data)+1, GFP_KERNEL);
+	rule = kzalloc(sizeof(struct bf_filter_rule), GFP_KERNEL);
+	rule->message = kzalloc(strlen(message)+1, GFP_KERNEL);
+	rule->data = kzalloc(strlen(data)+1, GFP_KERNEL);
 	
 	rule->block_or_modify = block_or_modify;
 	rule->uid = uid;
@@ -1129,7 +1128,7 @@ static void add_filter(struct bf_user_filter* filter)
 		if (context_type == CONTEXT_TYPE_INT) {
 			rule->context_int_value = context_int_value;
 		} else if (context_type == CONTEXT_TYPE_STRING){
-			rule->context_string_value = (char*) kzalloc(strlen(context_string_value)+1, GFP_KERNEL);
+			rule->context_string_value = kzalloc(strlen(context_string_value)+1, GFP_KERNEL);
 			strncpy(rule->context_string_value, context_string_value, strlen(context_string_value));
 			rule->context_string_value[strlen(rule->context_string_value)] = '\0';
 		} else {
@@ -1297,7 +1296,7 @@ static int parse_policy_context(char* policy, int starting_index, struct bf_user
 	index = index_of(policy, ':', old_index+1);
 	size = index - old_index;
 	if (index != -1) {
-		context_str = (char*) kzalloc(size+2, GFP_KERNEL);
+		context_str = kzalloc(size+2, GFP_KERNEL);
 		strncpy(context_str, (policy+old_index+1), size-1);
 		context_str[size+1] = '\0';
 		
@@ -1320,7 +1319,7 @@ static int parse_policy_context(char* policy, int starting_index, struct bf_user
 	index = index_of(policy, ':', old_index+1);
 	size = index - old_index;
 	if (index != -1) {
-		context_type_str = (char*) kzalloc(size+2, GFP_KERNEL);
+		context_type_str = kzalloc(size+2, GFP_KERNEL);
 		strncpy(context_type_str, (policy+old_index+1), size-1);
 		context_type_str[size+1] = '\0';
 		
@@ -1337,7 +1336,7 @@ static int parse_policy_context(char* policy, int starting_index, struct bf_user
 		index = index_of(policy, ':', old_index+1);
 		size = index - old_index;
 		if (index != -1) {
-			context_int_value_str = (char*) kzalloc(size+2, GFP_KERNEL);
+			context_int_value_str = kzalloc(size+2, GFP_KERNEL);
 			strncpy(context_int_value_str, (policy+old_index+1), size-1);
 			context_int_value_str[size+1] = '\0';
 			
@@ -1353,7 +1352,7 @@ static int parse_policy_context(char* policy, int starting_index, struct bf_user
 		index = index_of(policy, ':', old_index+1);
 		size = index - old_index;
 		if (index != -1) {
-			filter->context_string_value = (char*) kzalloc(size+2, GFP_KERNEL);
+			filter->context_string_value = kzalloc(size+2, GFP_KERNEL);
 			strncpy(filter->context_string_value, (policy+old_index+1), size-1);
 			filter->context_string_value[size+1] = '\0';
 		}
@@ -1389,7 +1388,7 @@ static void parse_policy_line(char* policy, struct bf_user_filter* filter)
 	// message
 	index = index_of(policy, ':', 0);
 	if (index != -1) {
-		filter->message = (char*) kzalloc(index+2, GFP_KERNEL);
+		filter->message = kzalloc(index+2, GFP_KERNEL);
 		strncpy(filter->message, policy, index);
 		filter->message[index+1] = '\0';
 	}
@@ -1399,7 +1398,7 @@ static void parse_policy_line(char* policy, struct bf_user_filter* filter)
 	index = index_of(policy, ':', old_index+1);
 	size = index - old_index;
 	if (index != -1) {
-		uid_str = (char*) kzalloc(size+2, GFP_KERNEL);
+		uid_str = kzalloc(size+2, GFP_KERNEL);
 		strncpy(uid_str, (policy+old_index+1), size-1);
 		uid_str[size+1] = '\0';
 
@@ -1415,7 +1414,7 @@ static void parse_policy_line(char* policy, struct bf_user_filter* filter)
 	index = index_of(policy, ':', old_index+1);
 	size = index - old_index;
 	if (index != -1) {
-		action_str = (char*) kzalloc(size+2, GFP_KERNEL);
+		action_str = kzalloc(size+2, GFP_KERNEL);
 		strncpy(action_str, (policy+old_index+1), size-1);
 		action_str[size+1] = '\0';
 		
@@ -1433,7 +1432,7 @@ static void parse_policy_line(char* policy, struct bf_user_filter* filter)
 	index = index_of(policy, ':', old_index+1);
 	size = index - old_index;
 	if (index != -1) {
-		filter->data = (char*) kzalloc(index+2, GFP_KERNEL);
+		filter->data = kzalloc(index+2, GFP_KERNEL);
 		strncpy(filter->data, (policy+old_index+1), size-1);
 		filter->data[size+1] = '\0';
 	}
@@ -1465,7 +1464,7 @@ static void free_bf_user_filter(struct bf_user_filter* f)
 static struct bf_user_filter* init_bf_user_filter(void)
 {
 	struct bf_user_filter* filter = 
-		(struct bf_user_filter*) kzalloc(sizeof(struct bf_user_filter), GFP_KERNEL);
+		kzalloc(sizeof(struct bf_user_filter), GFP_KERNEL);
 
 	filter->action = -1;
 	filter->uid = -1;
@@ -1493,7 +1492,7 @@ static int check_filter_default_values(struct bf_user_filter* filter)
 			&& (filter->message != NULL) && (filter->context != -1);
 
 	if (filter->data == NULL) {
-		filter->data = (char*) kzalloc(1, GFP_KERNEL);
+		filter->data = kzalloc(1, GFP_KERNEL);
 		filter->data[0] = '\0';
 	}
 
@@ -1566,7 +1565,7 @@ static void apply_policy(char* policy)
 		}
 
 		size = index-old_index;
-		line = (char*) kzalloc(size+2, GFP_KERNEL);
+		line = kzalloc(size+2, GFP_KERNEL);
 		strncpy(line, policy+old_index, size);
 		line[size] = '\0';
 		//printk(KERN_INFO "BINDERFILTER: line: {%s}\n", line);
@@ -1627,8 +1626,8 @@ static char* get_policy_string(void)
 {
 	int policy_str_len_max = LARGE_BUFFER_SIZE;
 	int temp_len_max = SMALL_BUFFER_SIZE;
-	char *policy_str = (char*) kzalloc(policy_str_len_max, GFP_KERNEL);
-	char *temp = (char*) kzalloc(temp_len_max,GFP_KERNEL);
+	char *policy_str = kzalloc(policy_str_len_max, GFP_KERNEL);
+	char *temp = kzalloc(temp_len_max,GFP_KERNEL);
 	int policy_str_len;
 	int temp_len;
 	struct bf_filter_rule* rule;

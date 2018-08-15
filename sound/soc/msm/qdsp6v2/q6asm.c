@@ -144,7 +144,7 @@ int q6asm_enable_effect(struct audio_client *ac, uint32_t module_id,
 			void *payload)
 {
 	int sz = sizeof(struct asm_params) + payload_size, rc = 0;
-	u8 *q6_cmd = (u8*)kzalloc(sz,GFP_KERNEL);
+	u8 *q6_cmd = kzalloc(sz,GFP_KERNEL);
 	struct asm_params *pasm = (struct asm_params*)q6_cmd;
 
 	if (!q6_cmd) {

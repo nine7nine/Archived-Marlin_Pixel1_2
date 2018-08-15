@@ -1646,7 +1646,7 @@ tfa98xx_dsp_read_mem(Tfa98xx_handle_t handle,
 	int num_bytes;
 	int *p;
 
-	bytes = (unsigned char *)kmalloc(num_words*bytes_per_word, GFP_KERNEL);
+	bytes = kmalloc(num_words*bytes_per_word, GFP_KERNEL);
 	if (bytes == NULL)
 		return Tfa98xx_Error_Fail;
 
@@ -3178,7 +3178,7 @@ tfa98xx_write_data(Tfa98xx_handle_t handle,
 	if (num_bytes > TFA2_MAX_PARAM_SIZE)
 		return Tfa98xx_Error_Bad_Parameter;
 
-	write_data = (unsigned char *)kmalloc(bytes2write, GFP_KERNEL);
+	write_data = kmalloc(bytes2write, GFP_KERNEL);
 	if (write_data == NULL)
 		return Tfa98xx_Error_Fail;
 

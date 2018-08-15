@@ -241,7 +241,7 @@ v_BOOL_t hdd_add_wowl_ptrn (hdd_adapter_t *pAdapter, const char * ptrn)
     }
 
     //All is good. Store the pattern locally
-    g_hdd_wowl_ptrns[first_empty_slot] = (char*) kmalloc(len+1, GFP_KERNEL);
+    g_hdd_wowl_ptrns[first_empty_slot] = kmalloc(len+1, GFP_KERNEL);
     if(g_hdd_wowl_ptrns[first_empty_slot] == NULL)
     {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,

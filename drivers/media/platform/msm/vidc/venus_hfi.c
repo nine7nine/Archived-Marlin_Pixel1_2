@@ -3638,8 +3638,7 @@ static int __init_regs_and_interrupts(struct venus_hfi_device *device,
 	}
 
 	dprintk(VIDC_DBG, "HAL_DATA will be assigned now\n");
-	hal = (struct hal_data *)
-		kzalloc(sizeof(struct hal_data), GFP_KERNEL);
+	hal = kzalloc(sizeof(struct hal_data), GFP_KERNEL);
 	if (!hal) {
 		dprintk(VIDC_ERR, "Failed to alloc\n");
 		rc = -ENOMEM;
@@ -4505,8 +4504,7 @@ static struct venus_hfi_device *__add_device(u32 device_id,
 
 	dprintk(VIDC_INFO, "entered , device_id: %d\n", device_id);
 
-	hdevice = (struct venus_hfi_device *)
-			kzalloc(sizeof(struct venus_hfi_device), GFP_KERNEL);
+	hdevice = kzalloc(sizeof(struct venus_hfi_device), GFP_KERNEL);
 	if (!hdevice) {
 		dprintk(VIDC_ERR, "failed to allocate new device\n");
 		goto exit;

@@ -82,7 +82,7 @@ void htc_show_interrupts(void)
 	int i = 0;
 	if(pre_nr_irqs != nr_irqs) {
 		pre_nr_irqs = nr_irqs;
-                previous_irqs = (unsigned int *)kcalloc(nr_irqs, sizeof(int),GFP_KERNEL);
+                previous_irqs = kcalloc(nr_irqs, sizeof(int),GFP_KERNEL);
 	}
         for (i = 0; i <= nr_irqs; i++)
 		htc_show_interrupt(i);
