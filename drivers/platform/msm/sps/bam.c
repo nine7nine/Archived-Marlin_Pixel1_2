@@ -2310,7 +2310,7 @@ void print_bam_test_bus_reg(void *base, u32 tb_sel)
 			0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
 			0x20, 0x21, 0x22, 0x23,
 			0x41, 0x42, 0x43, 0x44, 0x45, 0x46};
-	u32 size = sizeof(test_bus_selection) / sizeof(u32);
+	u32 size = ARRAY_SIZE(test_bus_selection);
 
 	if (base == NULL) {
 		SPS_ERR(sps, "sps:%s:BAM is NULL.\n", __func__);

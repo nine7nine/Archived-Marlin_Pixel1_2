@@ -2940,8 +2940,7 @@ static int msm_gcc_mdss_probe(struct platform_device *pdev)
 		return PTR_ERR(pclk0_clk_src.c.parent);
 	}
 
-	for (counter = 0; counter < (sizeof(ftbl_gcc_mdss_pclk0_clk)/
-				sizeof(struct clk_freq_tbl)); counter++)
+	for (counter = 0; counter < ARRAY_SIZE(ftbl_gcc_mdss_pclk0_clk); counter++)
 		ftbl_gcc_mdss_pclk0_clk[counter].src_clk =
 					pclk0_clk_src.c.parent;
 
@@ -2952,8 +2951,7 @@ static int msm_gcc_mdss_probe(struct platform_device *pdev)
 		return PTR_ERR(byte0_clk_src.c.parent);
 	}
 
-	for (counter = 0; counter < (sizeof(ftbl_gcc_mdss_byte0_clk)/
-				sizeof(struct clk_freq_tbl)); counter++)
+	for (counter = 0; counter < ARRAY_SIZE(ftbl_gcc_mdss_byte0_clk); counter++)
 		ftbl_gcc_mdss_byte0_clk[counter].src_clk =
 					byte0_clk_src.c.parent;
 

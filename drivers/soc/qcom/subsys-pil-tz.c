@@ -1045,8 +1045,8 @@ static int pil_tz_driver_probe(struct platform_device *pdev)
 						"rmb_err");
 		d->err_status = devm_ioremap_resource(&pdev->dev, res);
 		rc = of_property_read_u32_array(pdev->dev.of_node,
-		       "qcom,spss-scsr-bits", d->bits_arr, sizeof(d->bits_arr)/
-							sizeof(d->bits_arr[0]));
+		       "qcom,spss-scsr-bits", d->bits_arr,
+		       ARRAY_SIZE(d->bits_arr));
 		if (rc)
 			dev_err(&pdev->dev, "Failed to read qcom,spss-scsr-bits");
 	} else {

@@ -5920,7 +5920,7 @@ static int probe_vdd_rstr(struct device_node *node,
 			goto read_node_fail;
 		rails[i].num_levels = arr_size/sizeof(__be32);
 		if (rails[i].num_levels >
-			sizeof(rails[i].levels)/sizeof(uint32_t)) {
+			ARRAY_SIZE(rails[i].levels)) {
 			pr_err("Array size:%d too large for index:%d\n",
 				rails[i].num_levels, i);
 			return -EFAULT;

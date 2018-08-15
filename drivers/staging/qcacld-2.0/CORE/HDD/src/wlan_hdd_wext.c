@@ -133,7 +133,7 @@ static const hdd_freq_chan_map_t freq_chan_map[] = { {2412, 1}, {2417, 2},
         {5895, 179}, {5900, 180}, {5905, 181}, {5910, 182}, {5915, 183},
         {5920, 184} };
 
-#define FREQ_CHAN_MAP_TABLE_SIZE (sizeof(freq_chan_map)/sizeof(freq_chan_map[0]))
+#define FREQ_CHAN_MAP_TABLE_SIZE ARRAY_SIZE(freq_chan_map)
 
 #define RC_2_RATE_IDX(_rc)        ((_rc) & 0x7)
 #define HT_RC_2_STREAMS(_rc)    ((((_rc) & 0x78) >> 3) + 1)
@@ -12152,9 +12152,9 @@ static const struct iw_priv_args we_private_args[] = {
 
 
 const struct iw_handler_def we_handler_def = {
-   .num_standard     = sizeof(we_handler) / sizeof(we_handler[0]),
-   .num_private      = sizeof(we_private) / sizeof(we_private[0]),
-   .num_private_args = sizeof(we_private_args) / sizeof(we_private_args[0]),
+   .num_standard     = ARRAY_SIZE(we_handler),
+   .num_private      = ARRAY_SIZE(we_private),
+   .num_private_args = ARRAY_SIZE(we_private_args),
 
    .standard         = (iw_handler *)we_handler,
    .private          = (iw_handler *)we_private,

@@ -3495,8 +3495,7 @@ static int msm_gcc_mdss_probe(struct platform_device *pdev)
 		return PTR_ERR(curr_p);
 	}
 
-	for (counter = 0; counter < (sizeof(ftbl_gcc_mdss_pclk0_clk)/
-				sizeof(struct clk_freq_tbl)); counter++)
+	for (counter = 0; counter < ARRAY_SIZE(ftbl_gcc_mdss_pclk0_clk); counter++)
 		ftbl_gcc_mdss_pclk0_clk[counter].src_clk = curr_p;
 
 	curr_p = pclk1_clk_src.c.parent = devm_clk_get(&pdev->dev, "pclk1_src");
@@ -3506,8 +3505,7 @@ static int msm_gcc_mdss_probe(struct platform_device *pdev)
 		goto pclk1_fail;
 	}
 
-	for (counter = 0; counter < (sizeof(ftbl_gcc_mdss_pclk1_clk)/
-				sizeof(struct clk_freq_tbl)); counter++)
+	for (counter = 0; counter < ARRAY_SIZE(ftbl_gcc_mdss_pclk1_clk); counter++)
 		ftbl_gcc_mdss_pclk1_clk[counter].src_clk = curr_p;
 
 	curr_p = byte0_clk_src.c.parent = devm_clk_get(&pdev->dev, "byte0_src");
@@ -3517,8 +3515,7 @@ static int msm_gcc_mdss_probe(struct platform_device *pdev)
 		goto byte0_fail;
 	}
 
-	for (counter = 0; counter < (sizeof(ftbl_gcc_mdss_byte0_clk)/
-				sizeof(struct clk_freq_tbl)); counter++)
+	for (counter = 0; counter < ARRAY_SIZE(ftbl_gcc_mdss_byte0_clk); counter++)
 		ftbl_gcc_mdss_byte0_clk[counter].src_clk = curr_p;
 
 	curr_p = byte1_clk_src.c.parent = devm_clk_get(&pdev->dev, "byte1_src");
@@ -3528,8 +3525,7 @@ static int msm_gcc_mdss_probe(struct platform_device *pdev)
 		goto byte1_fail;
 	}
 
-	for (counter = 0; counter < (sizeof(ftbl_gcc_mdss_byte1_clk)/
-				sizeof(struct clk_freq_tbl)); counter++)
+	for (counter = 0; counter < ARRAY_SIZE(ftbl_gcc_mdss_byte1_clk); counter++)
 		ftbl_gcc_mdss_byte1_clk[counter].src_clk = curr_p;
 
 	ret = of_msm_clock_register(pdev->dev.of_node, msm_clocks_gcc_mdss,

@@ -6494,9 +6494,9 @@ static const iw_handler hostapd_private[] = {
    [QCSAP_IOCTL_WOWL_CONFIG_PTRN - SIOCIWFIRSTPRIV] = iw_softap_wowl_config_pattern,
 };
 const struct iw_handler_def hostapd_handler_def = {
-   .num_standard     = sizeof(hostapd_handler) / sizeof(hostapd_handler[0]),
-   .num_private      = sizeof(hostapd_private) / sizeof(hostapd_private[0]),
-   .num_private_args = sizeof(hostapd_private_args) / sizeof(hostapd_private_args[0]),
+   .num_standard     = ARRAY_SIZE(hostapd_handler),
+   .num_private      = ARRAY_SIZE(hostapd_private),
+   .num_private_args = ARRAY_SIZE(hostapd_private_args),
    .standard         = (iw_handler *)hostapd_handler,
    .private          = (iw_handler *)hostapd_private,
    .private_args     = hostapd_private_args,

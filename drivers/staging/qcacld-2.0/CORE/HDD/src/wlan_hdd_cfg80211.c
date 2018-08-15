@@ -20090,7 +20090,7 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
 
         for (i = 0; i < ORLeng; i++)
         {
-            for (j = 0; j < (sizeof(supported_data_rate) / sizeof(supported_data_rate[0])); j ++)
+            for (j = 0; j < ARRAY_SIZE(supported_data_rate); j ++)
             {
                 /* Validate Rate Set */
                 if (supported_data_rate[j].beacon_rate_index == (OperationalRates[i] & 0x7F))
@@ -20114,7 +20114,7 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
 
         for (i = 0; i < ERLeng; i++)
         {
-            for (j = 0; j < (sizeof(supported_data_rate) / sizeof(supported_data_rate[0])); j ++)
+            for (j = 0; j < ARRAY_SIZE(supported_data_rate); j ++)
             {
                 if (supported_data_rate[j].beacon_rate_index == (ExtendedRates[i] & 0x7F))
                 {

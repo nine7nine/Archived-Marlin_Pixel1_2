@@ -2339,7 +2339,7 @@ skd_check_status(struct skd_device *skdev,
 		 skerr->key, skerr->code, skerr->qual, skerr->fruc);
 
 	/* Does the info match an entry in the good category? */
-	n = sizeof(skd_chkstat_table) / sizeof(skd_chkstat_table[0]);
+	n = ARRAY_SIZE(skd_chkstat_table);
 	for (i = 0; i < n; i++) {
 		struct sns_info *sns = &skd_chkstat_table[i];
 
