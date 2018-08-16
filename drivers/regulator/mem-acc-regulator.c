@@ -422,7 +422,7 @@ static int mem_acc_sel_setup(struct mem_acc_regulator *mem_acc_vreg,
 	char *mem_select_size_str;
 
 	mem_acc_vreg->acc_sel_addr[mem_type] = res->start;
-	len = res->end - res->start + 1;
+	len = resource_size(res);
 	pr_debug("'acc_sel_addr' = %pa mem_type=%d (len=%d)\n",
 					&res->start, mem_type, len);
 
@@ -475,7 +475,7 @@ static int mem_acc_efuse_init(struct platform_device *pdev,
 	}
 
 	mem_acc_vreg->efuse_addr = res->start;
-	len = res->end - res->start + 1;
+	len = resource_size(res);
 
 	pr_info("efuse_addr = %pa (len=0x%x)\n", &res->start, len);
 
@@ -524,7 +524,7 @@ static int mem_acc_custom_data_init(struct platform_device *pdev,
 		pr_debug("%s resource missing\n", custom_apc_addr_str);
 		return -EINVAL;
 	} else {
-		len = res->end - res->start + 1;
+		len = resource_size(res);
 		mem_acc_vreg->acc_custom_addr[mem_type] =
 			devm_ioremap(mem_acc_vreg->dev, res->start, len);
 		if (!mem_acc_vreg->acc_custom_addr[mem_type]) {
@@ -1070,7 +1070,7 @@ static int mem_acc_init(struct platform_device *pdev,
 		pr_debug("'acc-en' resource missing or not used.\n");
 	} else {
 		mem_acc_vreg->acc_en_addr = res->start;
-		len = res->end - res->start + 1;
+		len = resource_size(res);
 		pr_debug("'acc_en_addr' = %pa (len=0x%x)\n", &res->start, len);
 
 		mem_acc_vreg->acc_en_base = devm_ioremap(mem_acc_vreg->dev,

@@ -929,7 +929,7 @@ static int tz_log_probe(struct platform_device *pdev)
 	/*
 	 * Get the debug buffer size
 	 */
-	debug_rw_buf_size = resource->end - resource->start + 1;
+	debug_rw_buf_size = resource_size(resource);
 
 	/*
 	 * Map address that stores the physical location diagnostic data

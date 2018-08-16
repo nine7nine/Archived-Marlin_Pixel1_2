@@ -2271,7 +2271,7 @@ void *qce_open(struct platform_device *pdev, int *rc)
 	};
 	pce_dev->phy_iobase = resource->start;
 	pce_dev->iobase = ioremap_nocache(resource->start,
-				resource->end - resource->start + 1);
+				resource_size(resource));
 	if (!pce_dev->iobase) {
 		*rc = -ENOMEM;
 		dev_err(pce_dev->pdev, "Can not map io memory\n");

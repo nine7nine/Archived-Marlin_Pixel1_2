@@ -5657,8 +5657,7 @@ static int get_device_tree_data(struct platform_device *pdev,
 		goto fail_tmdev;
 	}
 
-	tmdev->tsens_len = tmdev->res_tsens_mem->end -
-					tmdev->res_tsens_mem->start + 1;
+	tmdev->tsens_len = resource_size(tmdev->res_tsens_mem);
 
 	res_mem = request_mem_region(tmdev->res_tsens_mem->start,
 				tmdev->tsens_len, tmdev->res_tsens_mem->name);
@@ -5684,8 +5683,7 @@ static int get_device_tree_data(struct platform_device *pdev,
 		goto fail_unmap_tsens;
 	}
 
-	tmdev->calib_len = tmdev->res_calib_mem->end -
-					tmdev->res_calib_mem->start + 1;
+	tmdev->calib_len = resource_size(tmdev->res_calib_mem);
 
 	tmdev->tsens_calib_addr = ioremap(tmdev->res_calib_mem->start,
 						tmdev->calib_len);

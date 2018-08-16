@@ -877,7 +877,7 @@ static int msm_gfx_ldo_efuse_init(struct platform_device *pdev,
 	}
 
 	ldo_vreg->efuse_addr = res->start;
-	len = res->end - res->start + 1;
+	len = resource_size(res);
 
 	ldo_vreg->efuse_base = devm_ioremap(&pdev->dev,
 				ldo_vreg->efuse_addr, len);
@@ -950,7 +950,7 @@ static int msm_gfx_ldo_init(struct platform_device *pdev,
 	}
 
 	ldo_vreg->ldo_addr = res->start;
-	len = res->end - res->start + 1;
+	len = resource_size(res);
 
 	ldo_vreg->ldo_base = devm_ioremap(ldo_vreg->dev,
 					ldo_vreg->ldo_addr, len);

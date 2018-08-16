@@ -1186,7 +1186,7 @@ static void msm_hsl_release_port(struct uart_port *port)
 		uart_resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (unlikely(!uart_resource))
 		return;
-	size = uart_resource->end - uart_resource->start + 1;
+	size = resource_size(uart_resource);
 
 	release_mem_region(port->mapbase, size);
 	iounmap(port->membase);
@@ -1216,7 +1216,7 @@ static int msm_hsl_request_port(struct uart_port *port)
 		pr_err("can't get uartdm resource\n");
 		return -ENXIO;
 	}
-	size = uart_resource->end - uart_resource->start + 1;
+	size = resource_size(uart_resource);
 
 	if (unlikely(!request_mem_region(port->mapbase, size,
 					 "msm_serial_hsl"))) {
@@ -1242,7 +1242,7 @@ static int msm_hsl_request_port(struct uart_port *port)
 			return -ENXIO;
 		}
 
-		size = gsbi_resource->end - gsbi_resource->start + 1;
+		size = resource_size(gsbi_resource);
 		msm_hsl_port->mapped_gsbi = ioremap(gsbi_resource->start,
 						    size);
 		if (!msm_hsl_port->mapped_gsbi) {

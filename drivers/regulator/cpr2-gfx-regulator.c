@@ -1160,7 +1160,7 @@ static int cpr_efuse_init(struct platform_device *pdev,
 	}
 
 	cpr_vreg->efuse_addr = res->start;
-	len = res->end - res->start + 1;
+	len = resource_size(res);
 
 	cpr_info(cpr_vreg, "efuse_addr = %pa (len=0x%x)\n", &res->start, len);
 
