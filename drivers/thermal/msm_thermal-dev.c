@@ -385,8 +385,8 @@ int msm_thermal_ioctl_init()
 		ret = PTR_ERR(therm_device);
 		goto ioctl_dev_fail;
 	}
-	msm_thermal_dev = kmalloc(sizeof(struct msm_thermal_ioctl_dev),
-				GFP_KERNEL);
+	msm_thermal_dev = kzalloc(sizeof(struct msm_thermal_ioctl_dev),
+				  GFP_KERNEL);
 	if (!msm_thermal_dev) {
 		pr_err("%s: Error allocating memory\n",
 			KBUILD_MODNAME);
@@ -394,7 +394,6 @@ int msm_thermal_ioctl_init()
 		goto ioctl_clean_all;
 	}
 
-	memset(msm_thermal_dev, 0, sizeof(struct msm_thermal_ioctl_dev));
 	sema_init(&msm_thermal_dev->sem, 1);
 	cdev_init(&msm_thermal_dev->char_dev, &msm_thermal_fops);
 	ret = cdev_add(&msm_thermal_dev->char_dev, thermal_dev, 1);

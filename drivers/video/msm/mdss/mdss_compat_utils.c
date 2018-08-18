@@ -3761,12 +3761,11 @@ static int __copy_layer_pp_info_params(struct mdp_input_layer *layer,
 		goto exit;
 	}
 
-	pp_info = kmalloc(sizeof(struct mdp_overlay_pp_params), GFP_KERNEL);
+	pp_info = kzalloc(sizeof(struct mdp_overlay_pp_params), GFP_KERNEL);
 	if (!pp_info) {
 		ret = -ENOMEM;
 		goto exit;
 	}
-	memset(pp_info, 0, sizeof(struct mdp_overlay_pp_params));
 
 	pp_info->config_ops = pp_info32.config_ops;
 

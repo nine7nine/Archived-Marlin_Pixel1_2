@@ -1325,11 +1325,10 @@ ahd_linux_initialize_scsi_bus(struct ahd_softc *ahd)
 int
 ahd_platform_alloc(struct ahd_softc *ahd, void *platform_arg)
 {
-	ahd->platform_data =
-	    kmalloc(sizeof(struct ahd_platform_data), GFP_ATOMIC);
+	ahd->platform_data = kzalloc(sizeof(struct ahd_platform_data),
+				     GFP_ATOMIC);
 	if (ahd->platform_data == NULL)
 		return (ENOMEM);
-	memset(ahd->platform_data, 0, sizeof(struct ahd_platform_data));
 	ahd->platform_data->irq = AHD_LINUX_NOIRQ;
 	ahd_lockinit(ahd);
 	ahd->seltime = (aic79xx_seltime & 0x3) << 4;

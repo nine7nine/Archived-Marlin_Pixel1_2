@@ -620,14 +620,13 @@ static int voice_svc_open(struct inode *inode, struct file *file)
 
 	pr_info("%s\n", __func__); // HTC_AUD_MOD
 
-	prtd = kmalloc(sizeof(struct voice_svc_prvt), GFP_KERNEL);
+	prtd = kzalloc(sizeof(struct voice_svc_prvt), GFP_KERNEL);
 
 	if (prtd == NULL) {
 		pr_err("%s: kmalloc failed\n", __func__);
 		return -ENOMEM;
 	}
 
-	memset(prtd, 0, sizeof(struct voice_svc_prvt));
 	prtd->apr_q6_cvs = NULL;
 	prtd->apr_q6_mvm = NULL;
 	prtd->response_count = 0;
