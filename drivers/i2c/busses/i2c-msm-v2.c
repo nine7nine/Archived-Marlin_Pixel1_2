@@ -2292,6 +2292,7 @@ static int i2c_msm_pm_xfer_start(struct i2c_msm_ctrl *ctrl)
 	atomic_set(&ctrl->xfer.is_active, 1);
 
 	enable_irq(ctrl->rsrcs.irq);
+	enable_irq_wake(ctrl->rsrcs.irq);
 	return 0;
 }
 

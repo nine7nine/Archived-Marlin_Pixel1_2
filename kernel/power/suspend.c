@@ -73,7 +73,7 @@ static void freeze_enter(void)
 	spin_unlock_irq(&suspend_freeze_lock);
 
 	get_online_cpus();
-	cpuidle_resume();
+	//cpuidle_resume();
 
 	/* Push all the CPUs into the idle loop. */
 	wake_up_all_idle_cpus();
@@ -83,7 +83,7 @@ static void freeze_enter(void)
 		   suspend_freeze_state == FREEZE_STATE_WAKE);
 	pr_debug("PM: resume from suspend-to-idle\n");
 
-	cpuidle_pause();
+	//cpuidle_pause();
 	put_online_cpus();
 
 	spin_lock_irq(&suspend_freeze_lock);
