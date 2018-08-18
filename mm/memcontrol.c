@@ -294,7 +294,7 @@ struct mem_cgroup {
 	bool		oom_lock;
 	int		under_oom;
 
-	int	swappiness;
+	int	swappiness = 20;
 	/* OOM-Killer disable */
 	int		oom_kill_disable;
 
