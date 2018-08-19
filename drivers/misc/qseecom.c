@@ -1605,7 +1605,7 @@ static int __qseecom_qseos_fail_return_resp_tz(struct qseecom_dev_handle *data,
 	if (lstnr == RPMB_SERVICE)
 		__qseecom_enable_clk(CLK_QSEE);
 	ret = qseecom_scm_call(SCM_SVC_TZSCHEDULER, 1, send_data_rsp,
-				sizeof(send_data_rsp), resp, sizeof(*resp));
+				sizeof(*send_data_rsp), resp, sizeof(*resp));
 	if (ret) {
 		pr_err("scm_call() failed with err: %d (app_id = %d)\n",
 						ret, data->client.app_id);

@@ -152,8 +152,8 @@ int32_t VL53L0_write_multi(VL53L0_DEV dev, uint8_t index, uint8_t *pdata,
 	pvalue_as_str =  value_as_str;
 
 	for (i = 0 ; i < count ; i++) {
-		snprintf(pvalue_as_str, sizeof(pvalue_as_str),
-			"%02X", *(pdata + i));
+		snprintf(pvalue_as_str, sizeof(*pvalue_as_str),
+			 "%02X", *(pdata + i));
 
 		pvalue_as_str += 2;
 	}

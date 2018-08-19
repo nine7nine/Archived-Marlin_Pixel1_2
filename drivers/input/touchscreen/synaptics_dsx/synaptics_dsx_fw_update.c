@@ -655,7 +655,7 @@ static enum flash_area fwu_go_nogo(struct image_header_data *header)
 		image_fw_id = header->firmware_id;
 	} else {
 		strptr = strnstr(fwu->image_name, "PR",
-				sizeof(fwu->image_name));
+				sizeof(*fwu->image_name));
 		if (!strptr) {
 			dev_err(rmi4_data->pdev->dev.parent,
 					"%s: No valid PR number (PRxxxxxxx) found in image file name (%s)\n",

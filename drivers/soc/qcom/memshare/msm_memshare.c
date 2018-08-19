@@ -407,7 +407,7 @@ static int handle_alloc_generic_req(void *req_h, void *req, void *conn_h)
 			  (unsigned long int)alloc_resp->resp.result);
 	rc = qmi_send_resp_from_cb(mem_share_svc_handle, conn_h, req_h,
 			&mem_share_svc_alloc_generic_resp_desc, alloc_resp,
-			sizeof(alloc_resp));
+			sizeof(*alloc_resp));
 
 	if (rc < 0)
 		pr_err("In %s, Error sending the alloc request: %d\n",
@@ -548,7 +548,7 @@ static int handle_query_size_req(void *req_h, void *req, void *conn_h)
 			  (unsigned long int)query_resp->resp.result);
 	rc = qmi_send_resp_from_cb(mem_share_svc_handle, conn_h, req_h,
 			&mem_share_svc_size_query_resp_desc, query_resp,
-			sizeof(query_resp));
+			sizeof(*query_resp));
 
 	if (rc < 0)
 		pr_err("In %s, Error sending the query request: %d\n",

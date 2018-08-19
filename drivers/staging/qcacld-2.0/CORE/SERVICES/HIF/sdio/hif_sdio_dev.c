@@ -186,7 +186,7 @@ HIF_SDIO_DEVICE* HIFDevCreate(HIF_DEVICE *hif_device,
     status = HIFConfigureDevice(hif_device,
             HIF_DEVICE_SET_HTC_CONTEXT,
             (void*) pDev,
-            sizeof(pDev));
+            sizeof(*pDev));
     if (status != A_OK) {
         AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
                 ("(%s)HIF_DEVICE_SET_HTC_CONTEXT failed!!!\n", __FUNCTION__));
