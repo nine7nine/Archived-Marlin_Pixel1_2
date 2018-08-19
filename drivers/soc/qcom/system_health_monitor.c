@@ -617,13 +617,12 @@ static int shm_svc_req_cb(struct qmi_handle *handle, void *conn_h,
 		return -ENOTSUPP;
 	}
 
-	req_buf = kzalloc(req_sz, GFP_KERNEL);
+	req_buf = kmemdup(req, req_sz, GFP_KERNEL);
 	if (!req_buf) {
 		SHM_ERR("%s: Error allocating request buffer\n", __func__);
 		kfree(rwp);
 		return -ENOMEM;
 	}
-	memcpy(req_buf, req, req_sz);
 
 	INIT_WORK(&rwp->work, shm_svc_req_worker);
 	rwp->conn_h = conn_h;

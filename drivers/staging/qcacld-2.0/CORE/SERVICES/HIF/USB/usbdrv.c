@@ -1006,12 +1006,11 @@ A_STATUS usb_hif_submit_ctrl_out(HIF_DEVICE_USB *device,
 	do {
 
 		if (size > 0) {
-			buf = kmalloc(size, GFP_KERNEL);
+			buf = kmemdup((a_uint8_t *)data, size, GFP_KERNEL);
 			if (NULL == buf) {
 				ret = A_NO_MEMORY;
 				break;
 			}
-			memcpy(buf, (a_uint8_t *) data, size);
 		}
 
 		AR_DEBUG_PRINTF(USB_HIF_DEBUG_CTRL_TRANS, (

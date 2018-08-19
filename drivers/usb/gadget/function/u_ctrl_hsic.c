@@ -120,11 +120,9 @@ ghsic_send_cpkt_tomodem(u8 portno, void *buf, size_t len)
 		return 0;
 	}
 
-	cbuf = kmalloc(len, GFP_ATOMIC);
+	cbuf = kmemdup(buf, len, GFP_ATOMIC);
 	if (!cbuf)
 		return -ENOMEM;
-
-	memcpy(cbuf, buf, len);
 
 	/* drop cpkt if ch is not open */
 	if (!test_bit(CH_OPENED, &port->bridge_sts)) {

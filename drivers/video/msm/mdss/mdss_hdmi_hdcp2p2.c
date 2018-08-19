@@ -618,14 +618,13 @@ static void hdmi_hdcp2p2_send_msg(struct hdmi_hdcp2p2_ctrl *ctrl)
 		goto exit;
 	}
 
-	msg = kzalloc(msglen, GFP_KERNEL);
+	msg = kmemdup(ctrl->send_msg_buf, msglen, GFP_KERNEL);
 	if (!msg) {
 		mutex_unlock(&ctrl->msg_lock);
 		rc = -ENOMEM;
 		goto exit;
 	}
 
-	memcpy(msg, ctrl->send_msg_buf, msglen);
 	mutex_unlock(&ctrl->msg_lock);
 
 	/* Forward the message to the sink */

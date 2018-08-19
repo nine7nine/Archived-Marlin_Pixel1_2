@@ -212,12 +212,12 @@ static int mdm_mi2s_clk_ctl(struct snd_soc_pcm_runtime *rtd, bool enable)
 		ret = -ENOMEM;
 		goto done;
 	}
-	lpass_clk = kzalloc(sizeof(struct afe_clk_cfg), GFP_KERNEL);
+	lpass_clk = kmemdup(&lpass_default, sizeof(struct afe_clk_cfg),
+			    GFP_KERNEL);
 	if (!lpass_clk) {
 		ret = -ENOMEM;
 		goto done;
 	}
-	memcpy(lpass_clk, &lpass_default, sizeof(struct afe_clk_cfg));
 	pr_debug("%s enable = %x\n", __func__, enable);
 
 	if (enable) {
@@ -376,12 +376,12 @@ static int mdm_sec_mi2s_clk_ctl(struct snd_soc_pcm_runtime *rtd, bool enable)
 		ret = -EINVAL;
 		goto done;
 	}
-	lpass_clk = kzalloc(sizeof(struct afe_clk_cfg), GFP_KERNEL);
+	lpass_clk = kmemdup(&lpass_default, sizeof(struct afe_clk_cfg),
+			    GFP_KERNEL);
 	if (!lpass_clk) {
 		ret = -ENOMEM;
 		goto done;
 	}
-	memcpy(lpass_clk, &lpass_default, sizeof(struct afe_clk_cfg));
 	dev_dbg(card->dev, "%s enable = %x\n", __func__, enable);
 
 	lpass_clk->clk_set_mode = Q6AFE_LPASS_MODE_CLK1_VALID;

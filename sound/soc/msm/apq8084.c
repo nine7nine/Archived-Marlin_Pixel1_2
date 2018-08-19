@@ -1497,12 +1497,12 @@ static int apq8084_quad_mi2s_clk_ctl(struct snd_soc_pcm_runtime *rtd,
 		pr_err("%s:platform data is null\n", __func__);
 		return -EINVAL;
 	}
-	lpass_clk = kzalloc(sizeof(struct afe_clk_cfg), GFP_KERNEL);
+	lpass_clk = kmemdup(&lpass_default, sizeof(struct afe_clk_cfg),
+			    GFP_KERNEL);
 	if (lpass_clk == NULL) {
 		pr_err("%s:Failed to allocate memory\n", __func__);
 		return -ENOMEM;
 	}
-	memcpy(lpass_clk, &lpass_default, sizeof(struct afe_clk_cfg));
 	pr_debug("%s: lpass clock enable = %d\n", __func__, enable);
 	if (enable) {
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {

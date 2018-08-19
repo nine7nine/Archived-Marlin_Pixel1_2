@@ -151,8 +151,8 @@ int audio_cal_register(int num_cal_types,
 		}
 		INIT_LIST_HEAD(&client_info_node->list);
 
-		callback_node = kmalloc(sizeof(*callback_node),
-			GFP_KERNEL);
+		callback_node = kmemdup(&reg_data[i].callbacks,
+					sizeof(*callback_node), GFP_KERNEL);
 		if (callback_node == NULL) {
 			pr_err("%s: could not allocated callback_node!\n",
 				__func__);
@@ -160,8 +160,6 @@ int audio_cal_register(int num_cal_types,
 			goto err;
 		}
 
-		memcpy(callback_node, &reg_data[i].callbacks,
-			sizeof(*callback_node));
 		client_info_node->callbacks = callback_node;
 
 		mutex_lock(&audio_cal.cal_mutex[reg_data[i].cal_type]);

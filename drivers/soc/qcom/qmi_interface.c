@@ -420,14 +420,14 @@ static void qmi_event_notify(unsigned event, void *oob_data,
 	}
 	notify_work->event = event;
 	if (oob_data) {
-		notify_work->oob_data = kmalloc(oob_data_len, GFP_KERNEL);
+		notify_work->oob_data = kmemdup(oob_data, oob_data_len,
+						GFP_KERNEL);
 		if (!notify_work->oob_data) {
 			pr_err("%s: Couldn't allocate oob_data @ %d to %p\n",
 				__func__, event, priv);
 			kfree(notify_work);
 			return;
 		}
-		memcpy(notify_work->oob_data, oob_data, oob_data_len);
 	} else {
 		notify_work->oob_data = NULL;
 	}

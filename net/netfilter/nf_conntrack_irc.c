@@ -215,14 +215,13 @@ static int handle_nickname(struct nf_conn *ct,
 			no_of_clients++;
 			tuple = &ct->tuplehash[dir].tuple;
 			temp->nickname_len = i;
-			temp->nickname =
-				kmalloc(temp->nickname_len, GFP_ATOMIC);
+			temp->nickname = kmemdup(nick_start,
+						 temp->nickname_len,
+						 GFP_ATOMIC);
 			if (temp->nickname == NULL) {
 				kfree(temp);
 				return NF_DROP;
 			}
-			memcpy(temp->nickname, nick_start,
-			       temp->nickname_len);
 			memcpy(&temp->client_ip,
 			       &tuple->src.u3.ip, sizeof(__be32));
 			memcpy(&temp->server_ip,

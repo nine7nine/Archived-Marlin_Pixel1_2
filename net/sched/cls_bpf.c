@@ -191,13 +191,11 @@ static int cls_bpf_modify_existing(struct net *net, struct tcf_proto *tp,
 	}
 
 	bpf_size = bpf_len * sizeof(*bpf_ops);
-	bpf_ops = kzalloc(bpf_size, GFP_KERNEL);
+	bpf_ops = kmemdup(nla_data(tb[TCA_BPF_OPS]), bpf_size, GFP_KERNEL);
 	if (bpf_ops == NULL) {
 		ret = -ENOMEM;
 		goto errout;
 	}
-
-	memcpy(bpf_ops, nla_data(tb[TCA_BPF_OPS]), bpf_size);
 
 	tmp.len = bpf_len;
 	tmp.filter = bpf_ops;

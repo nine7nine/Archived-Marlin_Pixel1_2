@@ -920,16 +920,14 @@ static int hdcp_lib_wakeup(struct hdcp_lib_wakeup_data *data)
 		kzfree(handle->last_msg_recvd_buf);
 
 		handle->last_msg_recvd_len = data->recvd_msg_len;
-		handle->last_msg_recvd_buf = kzalloc(data->recvd_msg_len,
-			GFP_KERNEL);
+		handle->last_msg_recvd_buf = kmemdup(data->recvd_msg_buf,
+						     data->recvd_msg_len,
+						     GFP_KERNEL);
 		if (!handle->last_msg_recvd_buf) {
 			rc = -ENOMEM;
 			mutex_unlock(&handle->msg_lock);
 			goto exit;
 		}
-
-		memcpy(handle->last_msg_recvd_buf, data->recvd_msg_buf,
-			data->recvd_msg_len);
 	}
 	mutex_unlock(&handle->msg_lock);
 
@@ -1218,14 +1216,12 @@ static void hdcp_lib_msg_recvd(struct hdcp_lib_handle *handle)
 		goto exit;
 	}
 
-	msg = kzalloc(msglen, GFP_KERNEL);
+	msg = kmemdup(handle->last_msg_recvd_buf, msglen, GFP_KERNEL);
 	if (!msg) {
 		mutex_unlock(&handle->msg_lock);
 		rc = -ENOMEM;
 		goto exit;
 	}
-
-	memcpy(msg, handle->last_msg_recvd_buf, msglen);
 
 	mutex_unlock(&handle->msg_lock);
 

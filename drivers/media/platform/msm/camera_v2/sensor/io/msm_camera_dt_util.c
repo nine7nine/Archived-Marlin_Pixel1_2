@@ -615,17 +615,14 @@ int msm_camera_get_dt_power_setting_data(struct device_node *of_node,
 	if (NULL != ps && 0 != size)
 		need_reverse = 1;
 
-	power_info->power_down_setting =
-		kzalloc(sizeof(*ps) * size, GFP_KERNEL);
+	power_info->power_down_setting = kmemdup(ps, sizeof(*ps) * size,
+						 GFP_KERNEL);
 
 	if (!power_info->power_down_setting) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		rc = -ENOMEM;
 		goto ERROR1;
 	}
-
-	memcpy(power_info->power_down_setting,
-		ps, sizeof(*ps) * size);
 
 	power_info->power_down_setting_size = size;
 

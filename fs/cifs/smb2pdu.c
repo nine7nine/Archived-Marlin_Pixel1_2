@@ -1399,14 +1399,13 @@ SMB2_ioctl(const unsigned int xid, struct cifs_tcon *tcon, u64 persistent_fid,
 		goto ioctl_exit;
 	}
 
-	*out_data = kmalloc(*plen, GFP_KERNEL);
+	*out_data = kmemdup(rsp->hdr.ProtocolId + le32_to_cpu(rsp->OutputOffset),
+			    *plen, GFP_KERNEL);
 	if (*out_data == NULL) {
 		rc = -ENOMEM;
 		goto ioctl_exit;
 	}
 
-	memcpy(*out_data, rsp->hdr.ProtocolId + le32_to_cpu(rsp->OutputOffset),
-	       *plen);
 ioctl_exit:
 	free_rsp_buf(resp_buftype, rsp);
 	return rc;

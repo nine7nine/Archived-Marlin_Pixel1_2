@@ -235,13 +235,12 @@ static void msm_cpe_process_event_status(void *data,
 	lsm_d->ev_det_status = detect_status;
 	lsm_d->ev_det_pld_size = size;
 
-	lsm_d->ev_det_payload = kzalloc(size, GFP_KERNEL);
+	lsm_d->ev_det_payload = kmemdup(payload, size, GFP_KERNEL);
 	if (!lsm_d->ev_det_payload) {
 		pr_err("%s: no memory for event payload, size = %u\n",
 			__func__, size);
 		return;
 	}
-	memcpy(lsm_d->ev_det_payload, payload, size);
 
 	atomic_set(&lsm_d->event_avail, 1);
 	wake_up(&lsm_d->event_wait);

@@ -217,14 +217,13 @@ int bldr_log_setup(phys_addr_t bldr_phy_addr, size_t bldr_log_size, bool is_last
 				goto _unmap;
 
 			bl_last_tz_log_buf_size = bl_last_tz_log_end - bl_last_tz_log_start;
-			bl_last_tz_log_buf = kmalloc(bl_last_tz_log_buf_size, GFP_KERNEL);
+			bl_last_tz_log_buf = kmemdup(bl_last_tz_log_start,
+						     bl_last_tz_log_buf_size,
+						     GFP_KERNEL);
 			if (!bl_last_tz_log_buf) {
 				bl_last_tz_log_buf_size = 0;
 				goto _unmap;
 			}
-
-			memcpy(bl_last_tz_log_buf, bl_last_tz_log_start,
-			       bl_last_tz_log_buf_size);
 		}
 	} else {
 		bl_cur_log_buf = kmalloc(bldr_log_size, GFP_KERNEL);

@@ -1530,12 +1530,11 @@ static long ipa3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case IPA_IOC_GET_HW_VERSION:
 		pyld_sz = sizeof(enum ipa_hw_type);
-		param = kzalloc(pyld_sz, GFP_KERNEL);
+		param = kmemdup(&ipa3_ctx->ipa_hw_type, pyld_sz, GFP_KERNEL);
 		if (!param) {
 			retval = -ENOMEM;
 			break;
 		}
-		memcpy(param, &ipa3_ctx->ipa_hw_type, pyld_sz);
 		if (copy_to_user((u8 *)arg, param, pyld_sz)) {
 			retval = -EFAULT;
 			break;

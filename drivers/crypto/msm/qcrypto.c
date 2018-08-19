@@ -3437,10 +3437,9 @@ static int _qcrypto_aead_aes_192_fallback(struct aead_request *req,
 	rctx->fb_aes_dst = req->dst;
 	rctx->fb_aes_cryptlen = nbytes;
 	rctx->ivsize = crypto_aead_ivsize(aead_tfm);
-	rctx->fb_aes_iv = kzalloc(rctx->ivsize, GFP_ATOMIC);
+	rctx->fb_aes_iv = kmemdup(req->iv, rctx->ivsize, GFP_ATOMIC);
 	if (!rctx->fb_aes_iv)
 		goto ret;
-	memcpy(rctx->fb_aes_iv, req->iv, rctx->ivsize);
 	ablkcipher_request_set_crypt(aes_req, rctx->fb_aes_src,
 					rctx->fb_aes_dst,
 					rctx->fb_aes_cryptlen, rctx->fb_aes_iv);

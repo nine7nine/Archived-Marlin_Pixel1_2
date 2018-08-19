@@ -436,15 +436,13 @@ static int extract_metadata(dev_t dev, struct fec_header *fec,
 		goto blkdev_release;
 	}
 
-	header = kzalloc(sizeof(*header), GFP_KERNEL);
+	header = kmemdup(page_address(payload.page_io[0]), sizeof(*header),
+			 GFP_KERNEL);
 	if (!header) {
 		DMERR("kzalloc failed for header");
 		err = -ENOMEM;
 		goto free_payload;
 	}
-
-	memcpy(header, page_address(payload.page_io[0]),
-		sizeof(*header));
 
 	DMINFO("bio magic_number:%u protocol_version:%d table_length:%u",
 		le32_to_cpu(header->magic_number),

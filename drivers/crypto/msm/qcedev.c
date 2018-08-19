@@ -1226,7 +1226,8 @@ static int qcedev_vbuf_ablk_cipher(struct qcedev_async_req *areq,
 							CACHE_LINE_SIZE);
 	max_data_xfer = QCE_MAX_OPER_DATA - byteoffset;
 
-	saved_req = kmalloc(sizeof(struct qcedev_cipher_op_req), GFP_KERNEL);
+	saved_req = kmemdup(creq, sizeof(struct qcedev_cipher_op_req),
+			    GFP_KERNEL);
 	if (saved_req == NULL) {
 		pr_err("%s: Can't Allocate memory:saved_req 0x%lx\n",
 			__func__, (uintptr_t)saved_req);
@@ -1234,7 +1235,6 @@ static int qcedev_vbuf_ablk_cipher(struct qcedev_async_req *areq,
 		return -ENOMEM;
 
 	}
-	memcpy(saved_req, creq, sizeof(struct qcedev_cipher_op_req));
 
 	if (areq->cipher_op_req.data_len > max_data_xfer) {
 		struct qcedev_cipher_op_req req;

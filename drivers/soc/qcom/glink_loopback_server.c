@@ -622,14 +622,13 @@ static void *copy_vector_data(struct rx_work_info *tmp_rx_work_info)
 				tmp_rx_work_info->ptr, offset, &buf_size);
 			buf = phys_to_virt((unsigned long)pbuf);
 		}
-		dest_buf = kmalloc(buf_size, GFP_KERNEL);
+		dest_buf = kmemdup(buf, buf_size, GFP_KERNEL);
 		if (!dest_buf) {
 			LBSRV_ERR("%s:%s:%s %s: Error allocating data\n",
 				  rx_ch_info->transport, rx_ch_info->edge,
 				  rx_ch_info->name, __func__);
 			goto out_copy_vector_data;
 		}
-		memcpy(dest_buf, buf, buf_size);
 		tmp_vec_info->vec[i].iov_base = dest_buf;
 		tmp_vec_info->vec[i].iov_len = buf_size;
 		offset += buf_size;

@@ -3795,13 +3795,12 @@ static int mdss_fb_check_var(struct fb_var_screeninfo *var,
 	} else if (mfd->panel_info && !(var->activate & FB_ACTIVATE_TEST)) {
 		struct mdss_panel_info *panel_info;
 		int rc;
-		panel_info = kzalloc(sizeof(struct mdss_panel_info),
-				GFP_KERNEL);
+		panel_info = kmemdup(mfd->panel_info,
+				     sizeof(struct mdss_panel_info),
+				     GFP_KERNEL);
 		if (!panel_info)
 			return -ENOMEM;
 
-		memcpy(panel_info, mfd->panel_info,
-				sizeof(struct mdss_panel_info));
 		mdss_fb_var_to_panelinfo(var, panel_info);
 		rc = mdss_fb_send_panel_event(mfd, MDSS_EVENT_CHECK_PARAMS,
 			panel_info);

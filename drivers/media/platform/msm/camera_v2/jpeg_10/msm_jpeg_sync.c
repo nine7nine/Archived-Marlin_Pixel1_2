@@ -181,13 +181,11 @@ inline int msm_jpeg_q_in_buf(struct msm_jpeg_q *q_p,
 	struct msm_jpeg_core_buf *buf_p;
 
 	JPEG_DBG("%s:%d]\n", __func__, __LINE__);
-	buf_p = kmalloc(sizeof(struct msm_jpeg_core_buf), GFP_ATOMIC);
+	buf_p = kmemdup(buf, sizeof(struct msm_jpeg_core_buf), GFP_ATOMIC);
 	if (!buf_p) {
 		JPEG_PR_ERR("%s: no mem\n", __func__);
 		return -EFAULT;
 	}
-
-	memcpy(buf_p, buf, sizeof(struct msm_jpeg_core_buf));
 
 	msm_jpeg_q_in(q_p, buf_p);
 	return 0;
