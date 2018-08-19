@@ -21259,7 +21259,7 @@ static void wma_extscan_wow_event_callback(void *handle, void *event,
  */
 static void wma_wow_wake_up_stats_display(tp_wma_handle wma)
 {
-	WMA_LOGA("uc %d bc %d v4_mc %d v6_mc %d ra %d ns %d na %d pno_match %d pno_complete %d gscan %d low_rssi %d rssi_breach %d icmp %d icmpv6 %d oem %d",
+	WMA_LOGD("uc %d bc %d v4_mc %d v6_mc %d ra %d ns %d na %d pno_match %d pno_complete %d gscan %d low_rssi %d rssi_breach %d icmp %d icmpv6 %d oem %d",
 		wma->wow_ucast_wake_up_count,
 		wma->wow_bcast_wake_up_count,
 		wma->wow_ipv4_mcast_wake_up_count,
@@ -21958,7 +21958,7 @@ static int wma_wow_wakeup_host_event(void *handle, u_int8_t *event,
 			return -EINVAL;
 		}
 
-		WMA_LOGA("WOW (%d) %s vdev:%d",
+		WMA_LOGD("WOW (%d) %s vdev:%d",
 			wake_info->wake_reason,
 			wma_wow_wake_reason_str(wake_info->wake_reason, wma),
 			wake_info->vdev_id);
