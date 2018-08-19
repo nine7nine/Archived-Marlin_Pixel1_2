@@ -495,36 +495,19 @@ static struct input_handler boostbox_input_handler = {
 	.id_table	= boostbox_ids
 };
 
-static struct boost_drv *alloc_boost_drv(void)
-{
-	struct boost_drv *b;
-
-	b = kzalloc(sizeof(*b), GFP_KERNEL);
-	if (!b)
-		return NULL;
-
-	b->wq = alloc_workqueue("boostbox_wq", WQ_HIGHPRI, 0);
-	if (!b->wq) {
-		pr_err("Failed to allocate workqueue\n");
-		goto free_b;
-	}
-
-	return b;
-
-free_b:
-	kfree(b);
-	return NULL;
-}
-
 static int __init boostbox_init(void)
 {
 	struct boost_drv *b;
 	int ret;
 
-	b = alloc_boost_drv();
-	if (!b) {
-		pr_err("Failed to allocate boost_drv struct\n");
+	b = kzalloc(sizeof(*b), GFP_KERNEL);
+	if (!b)
 		return -ENOMEM;
+
+	b->wq = alloc_workqueue("boostbox_wq", WQ_HIGHPRI, 0);
+	if (!b->wq) {
+		ret = -ENOMEM;
+		goto free_b;
 	}
 
 	spin_lock_init(&b->lock);
@@ -542,7 +525,7 @@ static int __init boostbox_init(void)
 	ret = cpufreq_register_notifier(&b->cpu_notif, CPUFREQ_POLICY_NOTIFIER);
 	if (ret) {
 		pr_err("Failed to register cpufreq notifier, err: %d\n", ret);
-		goto free_b;
+		goto destroy_wq;
 	}
 
 	boostbox_input_handler.private = b;
@@ -569,6 +552,8 @@ unregister_handler:
 	input_unregister_handler(&boostbox_input_handler);
 unregister_cpu_notif:
 	cpufreq_unregister_notifier(&b->cpu_notif, CPUFREQ_POLICY_NOTIFIER);
+destroy_wq:
+	destroy_workqueue(b->wq);
 free_b:
 	kfree(b);
 	return ret;
