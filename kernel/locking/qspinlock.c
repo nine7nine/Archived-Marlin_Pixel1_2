@@ -313,7 +313,7 @@ void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val)
 	 * sequentiality; this is because not all clear_pending_set_locked()
 	 * implementations imply full barriers.
 	 */
-	smp_cond_acquire(!(atomic_read(&lock->val) & _Q_LOCKED_MASK));
+	smp_cond_load_acquire(&lock->val.counter, !(VAL & _Q_LOCKED_MASK));
 
 	/*
 	 * take ownership and clear the pending bit.
@@ -386,7 +386,7 @@ queue:
 	 * does not imply a full barrier.
 	 *
 	 */
-	smp_cond_acquire(!((val = atomic_read(&lock->val)) & _Q_LOCKED_PENDING_MASK));
+	val = smp_cond_load_acquire(&lock->val.counter, !(VAL & _Q_LOCKED_PENDING_MASK));
 
 	/*
 	 * claim the lock:
@@ -404,9 +404,9 @@ queue:
 			break;
 		}
 		/*
-		 * The smp_cond_acquire() call above has provided the necessary
-		 * acquire semantics required for locking. At most two
-		 * iterations of this loop may be ran.
+		 * The smp_cond_load_acquire() call above has provided the
+		 * necessary acquire semantics required for locking. At most
+		 * two iterations of this loop may be ran.
 		 */
 		old = atomic_cmpxchg_relaxed(&lock->val, val, _Q_LOCKED_VAL);
 		if (old == val)

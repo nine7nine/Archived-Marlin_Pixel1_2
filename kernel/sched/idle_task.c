@@ -33,7 +33,8 @@ pick_next_task_idle(struct rq *rq, struct task_struct *prev, struct pin_cookie c
 
 	put_prev_task(rq, prev);
 
-	schedstat_inc(rq, sched_goidle);
+	update_idle_core(rq);
+	schedstat_inc(rq->sched_goidle);
 	return rq->idle;
 }
 
@@ -52,7 +53,6 @@ dequeue_task_idle(struct rq *rq, struct task_struct *p, int flags)
 
 static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)
 {
-	idle_exit_fair(rq);
 	rq_last_tick_reset(rq);
 }
 
