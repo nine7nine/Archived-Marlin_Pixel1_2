@@ -79,7 +79,7 @@ static DEFINE_PER_CPU_ALIGNED(struct mcs_spinlock, mcs_nodes[4]);
  * therefore increment the cpu number by one.
  */
 
-static inline u32 encode_tail(int cpu, int idx)
+static inline __pure u32 encode_tail(int cpu, int idx)
 {
 	u32 tail;
 
@@ -92,7 +92,7 @@ static inline u32 encode_tail(int cpu, int idx)
 	return tail;
 }
 
-static inline struct mcs_spinlock *decode_tail(u32 tail)
+static inline __pure struct mcs_spinlock *decode_tail(u32 tail)
 {
 	int cpu = (tail >> _Q_TAIL_CPU_OFFSET) - 1;
 	int idx = (tail &  _Q_TAIL_IDX_MASK) >> _Q_TAIL_IDX_OFFSET;
@@ -333,6 +333,14 @@ queue:
 	tail = encode_tail(smp_processor_id(), idx);
 
 	node += idx;
+
+	/*
+	 * Ensure that we increment the head node->count before initialising
+	 * the actual node. If the compiler is kind enough to reorder these
+	 * stores, then an IRQ could overwrite our assignments.
+	 */
+	barrier();
+
 	node->locked = 0;
 	node->next = NULL;
 
@@ -349,6 +357,8 @@ queue:
 	 * pending stuff.
 	 *
 	 * p,*,* -> n,*,*
+	 *
+	 * RELEASE, such that the stores to @node must be complete.
 	 */
 	old = xchg_tail(lock, tail);
 	next = NULL;
@@ -359,6 +369,15 @@ queue:
 	 */
 	if (old & _Q_TAIL_MASK) {
 		prev = decode_tail(old);
+		/*
+		 * The above xchg_tail() is also a load of @lock which generates,
+		 * through decode_tail(), a pointer.
+		 *
+		 * The address dependency matches the RELEASE of xchg_tail()
+		 * such that the access to @prev must happen after.
+		 */
+		smp_read_barrier_depends();
+
 		WRITE_ONCE(prev->next, node);
 
 		arch_mcs_spin_lock_contended(&node->locked);
@@ -429,6 +448,6 @@ release:
 	/*
 	 * release the node
 	 */
-	this_cpu_dec(mcs_nodes[0].count);
+	__this_cpu_dec(mcs_nodes[0].count);
 }
 EXPORT_SYMBOL(queued_spin_lock_slowpath);
