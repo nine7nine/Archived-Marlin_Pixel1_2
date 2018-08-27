@@ -196,7 +196,7 @@ static irqreturn_t pn551_dev_irq_handler(int irq, void *dev_id)
 	static unsigned long orig_jiffies = 0;
 
 	if (gpio_get_value(pn551_dev->irq_gpio) == 0) {
-		I("%s: irq_workaround PN551\n", __func__);
+		//I("%s: irq_workaround PN551\n", __func__);
 		return IRQ_HANDLED;
 	}
 
@@ -206,7 +206,7 @@ static irqreturn_t pn551_dev_irq_handler(int irq, void *dev_id)
 	wake_up(&pn551_dev->read_wq);
 
 	if (time_after(jiffies, orig_jiffies + msecs_to_jiffies(1000)))
-		I("%s: irq=%d\n", __func__, irq);
+		//I("%s: irq=%d\n", __func__, irq);
 	orig_jiffies = jiffies;
 
 	return IRQ_HANDLED;
@@ -276,18 +276,18 @@ static ssize_t pn551_dev_read(struct file *filp, char __user *buf,
 
 		pni->irq_enabled = true;
 		enable_irq(pni->client->irq);
-		D("%s: waiting read-event INT, because "
-			"irq_gpio = 0\n", __func__);
+		//D("%s: waiting read-event INT, because "
+		//	"irq_gpio = 0\n", __func__);
 		pni->isReadBlock = true;
 		ret = wait_event_interruptible(pni->read_wq,
 				gpio_get_value(pni->irq_gpio));
 
 		pn551_disable_irq(pni);
 
-		D("%s : wait_event_interruptible done\n", __func__);
+		//D("%s : wait_event_interruptible done\n", __func__);
 
 		if (ret) {
-			I("pn551_dev_read wait_event_interruptible breaked ret=%d\n", ret);
+			//I("pn551_dev_read wait_event_interruptible breaked ret=%d\n", ret);
 			goto fail;
 		}
 
