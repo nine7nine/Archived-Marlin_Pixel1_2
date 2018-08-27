@@ -15,9 +15,6 @@
 bool schedtune_initialized = false;
 #endif
 
-extern struct rq *lock_rq_of(struct task_struct *p, struct rq_flags *rf);
-extern void unlock_rq_of(struct rq *rq, struct task_struct *p, struct rq_flags *rf);
-
 int sysctl_sched_cfs_boost __read_mostly;
 
 /* We hold schedtune boost in effect for at least this long */
@@ -120,6 +117,64 @@ __schedtune_accept_deltas(int nrg_delta, int cap_delta,
 
 /*
  * EAS scheduler tunables for task groups.
+ *
+ * When CGroup support is enabled, we have to synchronize two different
+ * paths:
+ *  - slow path: where CGroups are created/updated/removed
+ *  - fast path: where tasks in a CGroups are accounted
+ *
+ * The slow path tracks (a limited number of) CGroups and maps each on a
+ * "boost_group" index. The fastpath accounts tasks currently RUNNABLE on each
+ * "boost_group".
+ *
+ * Once a new CGroup is created, a boost group idx is assigned and the
+ * corresponding "boost_group" marked as valid on each CPU.
+ * Once a CGroup is release, the corresponding "boost_group" is marked as
+ * invalid on each CPU. The CPU boost value (boost_max) is aggregated by
+ * considering only valid boost_groups with a non null tasks counter.
+ *
+ * .:: Locking strategy
+ *
+ * The fast path uses a spin lock for each CPU boost_group which protects the
+ * tasks counter.
+ *
+ * The "valid" and "boost" values of each CPU boost_group is instead
+ * protected by the RCU lock provided by the CGroups callbacks. Thus, only the
+ * slow path can access and modify the boost_group attribtues of each CPU.
+ * The fast path will catch up the most updated values at the next scheduling
+ * event (i.e. enqueue/dequeue).
+ *
+ *                                                        |
+ *                                             SLOW PATH  |   FAST PATH
+ *                              CGroup add/update/remove  |   Scheduler enqueue/dequeue events
+ *                                                        |
+ *                                                        |
+ *                                                        |     DEFINE_PER_CPU(struct boost_groups)
+ *                                                        |     +--------------+----+---+----+----+
+ *                                                        |     |  idle        |    |   |    |    |
+ *                                                        |     |  boost_max   |    |   |    |    |
+ *                                                        |  +---->lock        |    |   |    |    |
+ *  struct schedtune                  allocated_groups    |  |  |  group[    ] |    |   |    |    |
+ *  +------------------------------+         +-------+    |  |  +--+---------+-+----+---+----+----+
+ *  | idx                          |         |       |    |  |     |  valid  |
+ *  | boots / prefer_idle          |         |       |    |  |     |  boost  |
+ *  | perf_{boost/constraints}_idx | <---------+(*)  |    |  |     |  tasks  | <------------+
+ *  | css                          |         +-------+    |  |     +---------+              |
+ *  +-+----------------------------+         |       |    |  |     |         |              |
+ *    ^                                      |       |    |  |     |         |              |
+ *    |                                      +-------+    |  |     +---------+              |
+ *    |                                      |       |    |  |     |         |              |
+ *    |                                      |       |    |  |     |         |              |
+ *    |                                      +-------+    |  |     +---------+              |
+ *    | zmalloc                              |       |    |  |     |         |              |
+ *    |                                      |       |    |  |     |         |              |
+ *    |                                      +-------+    |  |     +---------+              |
+ *    +                              BOOSTGROUPS_COUNT    |  |     BOOSTGROUPS_COUNT        |
+ *  schedtune_boostgroup_init()                           |  +                              |
+ *                                                        |  schedtune_{en,de}queue_task()  |
+ *                                                        |                                 +
+ *                                                        |          schedtune_tasks_update()
+ *                                                        |
  */
 
 /* SchdTune tunables for a group of tasks */
@@ -229,7 +284,6 @@ schedtune_accept_deltas(int nrg_delta, int cap_delta,
  *    implementation especially for the computation of the per-CPU boost
  *    value
  */
-
 #define BOOSTGROUPS_COUNT 7
 
 /* Array of configured boostgroups */
@@ -1017,7 +1071,7 @@ schedtune_test_nrg(unsigned long delta_pwr)
 
 		/* Normalize on max energy for target platform */
 		test_norm_pwr = reciprocal_divide(
-					test_delta_pwr << SCHED_LOAD_SHIFT,
+					test_delta_pwr << SCHED_CAPACITY_SHIFT,
 					schedtune_target_nrg.rdiv);
 
 		pr_info("schedtune: max_pwr/2^%d: %4lu => norm_pwr: %5lu\n",

@@ -67,25 +67,25 @@ static inline void update_idle_core(struct rq *rq) { }
  * increase coverage and consistency always enable it on 64bit platforms.
  */
 #ifdef CONFIG_64BIT
-# define SCHED_LOAD_SHIFT	(SCHED_FIXEDPOINT_SHIFT + SCHED_FIXEDPOINT_SHIFT)
+# define NICE_0_LOAD_SHIFT	(SCHED_FIXEDPOINT_SHIFT + SCHED_FIXEDPOINT_SHIFT)
 # define scale_load(w)		((w) << SCHED_FIXEDPOINT_SHIFT)
 # define scale_load_down(w)	((w) >> SCHED_FIXEDPOINT_SHIFT)
 #else
-# define SCHED_LOAD_SHIFT	(SCHED_FIXEDPOINT_SHIFT)
+# define NICE_0_LOAD_SHIFT	(SCHED_FIXEDPOINT_SHIFT)
 # define scale_load(w)		(w)
 # define scale_load_down(w)	(w)
 #endif
 
-#define SCHED_LOAD_SCALE	(1L << SCHED_LOAD_SHIFT)
-
 /*
- * NICE_0's weight (visible to users) and its load (invisible to users) have
- * independent ranges, but they should be well calibrated. We use scale_load()
- * and scale_load_down(w) to convert between them, and the following must be true:
- * scale_load(sched_prio_to_weight[20]) == NICE_0_LOAD
+ * Task weight (visible to users) and its load (invisible to users) have
+ * independent resolution, but they should be well calibrated. We use
+ * scale_load() and scale_load_down(w) to convert between them. The
+ * following must be true:
+ *
+ *  scale_load(sched_prio_to_weight[USER_PRIO(NICE_TO_PRIO(0))]) == NICE_0_LOAD
+ *
  */
-#define NICE_0_LOAD		SCHED_LOAD_SCALE
-#define NICE_0_SHIFT		SCHED_LOAD_SHIFT
+#define NICE_0_LOAD		(1L << NICE_0_LOAD_SHIFT)
 
 /*
  * Single value that decides SCHED_DEADLINE internal math precision.
@@ -443,10 +443,6 @@ struct cfs_rq {
 	struct list_head leaf_cfs_rq_list;
 	struct task_group *tg;	/* group that "owns" this runqueue */
 
-#ifdef CONFIG_SCHED_WALT
-	u64 cumulative_runnable_avg;
-#endif
-
 #ifdef CONFIG_CFS_BANDWIDTH
 	int runtime_enabled;
 	u64 runtime_expires;
@@ -456,6 +452,9 @@ struct cfs_rq {
 	u64 throttled_clock_task_time;
 	int throttled, throttle_count;
 	struct list_head throttled_list;
+#ifdef CONFIG_SCHED_WALT
+	u64 cumulative_runnable_avg;
+#endif /* CONFIG_SCHED_WALT */
 #endif /* CONFIG_CFS_BANDWIDTH */
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 };
@@ -726,6 +725,8 @@ struct rq {
 	u64 window_start;
 	u64 curr_runnable_sum;
 	u64 prev_runnable_sum;
+	u64 nt_curr_runnable_sum;
+	u64 nt_prev_runnable_sum;
 	u64 cur_irqload;
 	u64 avg_irqload;
 	u64 irqload_ts;
@@ -771,8 +772,9 @@ struct rq {
 	/* try_to_wake_up() stats */
 	unsigned int ttwu_count;
 	unsigned int ttwu_local;
-
+#ifdef CONFIG_SMP
 	struct eas_stats eas_stats;
+#endif
 #endif
 
 #ifdef CONFIG_SMP
@@ -938,7 +940,7 @@ DECLARE_PER_CPU(struct sched_domain *, sd_scs);
 struct sched_group_capacity {
 	atomic_t ref;
 	/*
-	 * CPU capacity of this group, SCHED_LOAD_SCALE being max capacity
+	 * CPU capacity of this group, SCHED_CAPACITY_SCALE being max capacity
 	 * for a single CPU.
 	 */
 	unsigned long capacity;
@@ -1174,6 +1176,9 @@ static inline void finish_lock_switch(struct rq *rq, struct task_struct *prev)
 	 * After ->on_cpu is cleared, the task can be moved to a different CPU.
 	 * We must ensure this doesn't happen until the switch is completely
 	 * finished.
+	 *
+	 * In particular, the load of prev->state in finish_task_switch() must
+	 * happen before this.
 	 *
 	 * Pairs with the smp_cond_load_acquire() in try_to_wake_up().
 	 */
@@ -1629,9 +1634,9 @@ static inline unsigned long __cpu_util(int cpu, int delta)
 	unsigned long capacity = capacity_orig_of(cpu);
 
 #ifdef CONFIG_SCHED_WALT
-	if (!walt_disabled && sysctl_sched_use_walt_cpu_util)
+	if (!walt_disabled && sysctl_sched_use_walt_cpu_util) 
 		util = div64_u64(cpu_rq(cpu)->cumulative_runnable_avg,
-				 walt_ravg_window >> SCHED_LOAD_SHIFT);
+			       walt_ravg_window >> SCHED_CAPACITY_SHIFT);
 #endif
 	delta += util;
 	if (delta < 0)
@@ -1653,7 +1658,7 @@ static inline unsigned long cpu_util_freq(int cpu)
 #ifdef CONFIG_SCHED_WALT
 	if (!walt_disabled && sysctl_sched_use_walt_cpu_util)
 		util = div64_u64(cpu_rq(cpu)->prev_runnable_sum,
-				 walt_ravg_window >> SCHED_LOAD_SHIFT);
+				 walt_ravg_window >> SCHED_CAPACITY_SHIFT);
 #endif
 	return (util >= capacity) ? capacity : util;
 }
@@ -1771,6 +1776,9 @@ task_rq_unlock(struct rq *rq, struct task_struct *p, struct rq_flags *rf)
 	raw_spin_unlock(&rq->lock);
 	raw_spin_unlock_irqrestore(&p->pi_lock, rf->flags);
 }
+
+extern struct rq *lock_rq_of(struct task_struct *p, struct rq_flags *flags);
+extern void unlock_rq_of(struct rq *rq, struct task_struct *p, struct rq_flags *flags);
 
 #ifdef CONFIG_SMP
 #ifdef CONFIG_PREEMPT
@@ -2053,17 +2061,17 @@ DECLARE_PER_CPU(struct update_util_data *, cpufreq_update_util_data);
  */
 static inline void cpufreq_update_util(struct rq *rq, unsigned int flags)
 {
-        struct update_util_data *data;
+	struct update_util_data *data;
 
-        data = rcu_dereference_sched(*this_cpu_ptr(&cpufreq_update_util_data));
-        if (data)
-                data->func(data, rq_clock(rq), flags);
+	data = rcu_dereference_sched(*this_cpu_ptr(&cpufreq_update_util_data));
+	if (data)
+		data->func(data, rq_clock(rq), flags);
 }
 
 static inline void cpufreq_update_this_cpu(struct rq *rq, unsigned int flags)
 {
-        if (cpu_of(rq) == smp_processor_id())
-                cpufreq_update_util(rq, flags);
+	if (cpu_of(rq) == smp_processor_id())
+		cpufreq_update_util(rq, flags);
 }
 #else
 static inline void cpufreq_update_util(struct rq *rq, unsigned int flags) {}
@@ -2083,10 +2091,10 @@ walt_task_in_cum_window_demand(struct rq *rq, struct task_struct *p)
 
 #ifdef arch_scale_freq_capacity
 #ifndef arch_scale_freq_invariant
-#define arch_scale_freq_invariant()     (true)
+#define arch_scale_freq_invariant()	(true)
 #endif
 #else /* arch_scale_freq_capacity */
-#define arch_scale_freq_invariant()     (false)
+#define arch_scale_freq_invariant()	(false)
 #endif
 
 /*

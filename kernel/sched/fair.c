@@ -757,15 +757,7 @@ void init_entity_runnable_average(struct sched_entity *se)
 	if (entity_is_task(se))
 		sa->load_avg = scale_load_down(se->load.weight);
 	sa->load_sum = sa->load_avg * LOAD_AVG_MAX;
-	/*
-	 * In previous Android versions, we used to have:
-	 * 	sa->util_avg =  sched_freq() ?
-	 * 		sysctl_sched_initial_task_util :
-	 *		scale_load_down(SCHED_LOAD_SCALE);
-	 * 	sa->util_sum = sa->util_avg * LOAD_AVG_MAX;
-	 * However, that functionality has been moved to enqueue.
-	 * It is unclear if we should restore this in enqueue.
-	 */
+
 	/*
 	 * At this point, util_avg won't be used in select_task_rq_fair anyway
 	 */
@@ -8335,7 +8327,6 @@ group_is_overloaded(struct lb_env *env, struct sg_lb_stats *sgs)
 	return false;
 }
 
-
 /*
  * group_smaller_cpu_capacity: Returns true if sched_group sg has smaller
  * per-cpu capacity than sched_group ref.
@@ -8343,7 +8334,7 @@ group_is_overloaded(struct lb_env *env, struct sg_lb_stats *sgs)
 static inline bool
 group_smaller_cpu_capacity(struct sched_group *sg, struct sched_group *ref)
 {
-	return sg->sgc->max_capacity + capacity_margin - SCHED_LOAD_SCALE <
+	return sg->sgc->max_capacity + capacity_margin - SCHED_CAPACITY_SCALE <
 							ref->sgc->max_capacity;
 }
 
@@ -8850,11 +8841,12 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 	 */
 	if (busiest->group_type == group_overloaded &&
 	    local->group_type   == group_overloaded) {
-		load_above_capacity = busiest->sum_nr_running *
-					SCHED_LOAD_SCALE;
-		if (load_above_capacity > busiest->group_capacity)
+		load_above_capacity = busiest->sum_nr_running * SCHED_CAPACITY_SCALE;
+		if (load_above_capacity > busiest->group_capacity) {
 			load_above_capacity -= busiest->group_capacity;
-		else
+			load_above_capacity *= scale_load_down(NICE_0_LOAD);
+			load_above_capacity /= busiest->group_capacity;
+		} else
 			load_above_capacity = ~0UL;
 	}
 
@@ -8862,9 +8854,8 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 	 * We're trying to get all the cpus to the average_load, so we don't
 	 * want to push ourselves above the average load, nor do we wish to
 	 * reduce the max loaded cpu below the average load. At the same time,
-	 * we also don't want to reduce the group load below the group capacity
-	 * (so that we can implement power-savings policies etc). Thus we look
-	 * for the minimum possible imbalance.
+	 * we also don't want to reduce the group load below the group
+	 * capacity. Thus we look for the minimum possible imbalance.
 	 */
 	max_pull = min(busiest->avg_load - sds->avg_load, load_above_capacity);
 
@@ -8893,10 +8884,7 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
 
 /**
  * find_busiest_group - Returns the busiest group within the sched_domain
- * if there is an imbalance. If there isn't an imbalance, and
- * the user has opted for power-savings, it returns a group whose
- * CPUs can be put to idle by rebalancing those tasks elsewhere, if
- * such a group exists.
+ * if there is an imbalance.
  *
  * Also calculates the amount of weighted load which should be moved
  * to restore balance.
@@ -8904,9 +8892,6 @@ static inline void calculate_imbalance(struct lb_env *env, struct sd_lb_stats *s
  * @env: The load balancing environment.
  *
  * Return:	- The busiest group if imbalance exists.
- *		- If no imbalance and user has opted for power-savings balance,
- *		   return the least loaded group whose CPUs can be
- *		   put to idle by rebalancing its tasks onto our group.
  */
 static struct sched_group *find_busiest_group(struct lb_env *env)
 {
