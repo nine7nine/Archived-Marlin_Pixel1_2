@@ -4278,6 +4278,7 @@ static int wcd9xxx_setup_jack_detect_irq(struct wcd9xxx_mbhc *mbhc)
 					   wcd9xxx_mech_plug_detect_irq,
 					   (IRQF_TRIGGER_RISING |
 					    IRQF_TRIGGER_FALLING |
+					    IRQF_TH_SCHED_FIFO_HI |
 					    IRQF_DISABLED),
 					   "headset detect", mbhc);
 		if (ret) {

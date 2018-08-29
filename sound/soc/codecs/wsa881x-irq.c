@@ -368,7 +368,7 @@ static int wsa_irq_init(struct wsa_resource *wsa_res)
 	}
 
 	ret = request_threaded_irq(wsa_res->irq, NULL, wsa_irq_thread,
-				   IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
+				   IRQF_TRIGGER_HIGH | IRQF_ONESHOT | IRQF_TH_SCHED_FIFO_HI,
 				   "wsa", wsa_res);
 	if (ret != 0) {
 		dev_err(wsa_res->dev, "Failed to request IRQ %d: %d\n",

@@ -3113,7 +3113,7 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	if (gpio_is_valid(tfa98xx->irq_gpio) &&
 		!(tfa98xx->flags & TFA98XX_FLAG_SKIP_INTERRUPTS)) {
 		/* register irq handler */
-		irq_flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT;
+		irq_flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_TH_SCHED_FIFO_HI;
 		ret = devm_request_threaded_irq(&i2c->dev,
 					gpio_to_irq(tfa98xx->irq_gpio),
 					NULL, tfa98xx_irq, irq_flags,
