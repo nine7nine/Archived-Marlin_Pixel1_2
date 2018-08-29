@@ -21,6 +21,9 @@
 
 #include "internals.h"
 
+#define RT_PRIO_LOW 30;
+#define RT_PRIO_HI 70;
+
 struct irq_desc_list {
 	struct list_head list;
 	struct irq_desc *desc;
@@ -1095,6 +1098,14 @@ setup_irq_thread(struct irqaction *new, unsigned int irq, bool secondary)
 
 	if (new->flags & IRQF_TH_SCHED_NORMAL) {
 		sched_setscheduler_nocheck(t, SCHED_NORMAL, &param);
+	}
+	if (new->flags & IRQF_TH_SCHED_FIFO_LOW) {
+		param.sched_priority = RT_PRIO_LOW;
+		sched_setscheduler_nocheck(t, SCHED_FIFO, &param);
+	}
+	if (new->flags & IRQF_TH_SCHED_FIFO_HI) {
+		param.sched_priority = RT_PRIO_HI;
+		sched_setscheduler_nocheck(t, SCHED_FIFO, &param);
 	} else {
 		param.sched_priority = MAX_USER_RT_PRIO/2;
 		sched_setscheduler_nocheck(t, SCHED_FIFO, &param);

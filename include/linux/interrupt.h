@@ -63,6 +63,10 @@
  *                enforced in the IRQ thread
  * IRQF_PERF_CRITICAL - Interrupt is critical to the overall performance of the
  * 		  system and should be processed on a fast CPU.
+ * IRQF_TH_SCHED_FIFO_LOW - If the IRQ is threaded, it will use SCHED_FIFO,
+ *                but will have lower priority than the threaded IRQ default
+ * IRQF_TH_SCHED_FIFO_HI - If the IRQ is threaded, it will use SCHED_NORMAL,
+ *                but will have higher priority than the threaded IRQ default
  */
 #define IRQF_DISABLED		0x00000020
 #define IRQF_SHARED		0x00000080
@@ -79,6 +83,8 @@
 #define IRQF_TH_SCHED_NORMAL	0x00040000
 #define IRQF_TH_NO_AFFINITY	0x00080000
 #define IRQF_PERF_CRITICAL	0x00100000
+#define IRQF_TH_SCHED_FIFO_LOW	0x00200000
+#define IRQF_TH_SCHED_FIFO_HI	0x00400000
 
 #define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NO_THREAD)
 
