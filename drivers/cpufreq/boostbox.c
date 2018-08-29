@@ -504,7 +504,7 @@ static int __init boostbox_init(void)
 	if (!b)
 		return -ENOMEM;
 
-	b->wq = alloc_workqueue("boostbox_wq", WQ_HIGHPRI, 0);
+	b->wq = create_workqueue("boostbox_wq");
 	if (!b->wq) {
 		ret = -ENOMEM;
 		goto free_b;
@@ -553,6 +553,7 @@ unregister_handler:
 unregister_cpu_notif:
 	cpufreq_unregister_notifier(&b->cpu_notif, CPUFREQ_POLICY_NOTIFIER);
 destroy_wq:
+	flush_workqueue(b->wq);
 	destroy_workqueue(b->wq);
 free_b:
 	kfree(b);
