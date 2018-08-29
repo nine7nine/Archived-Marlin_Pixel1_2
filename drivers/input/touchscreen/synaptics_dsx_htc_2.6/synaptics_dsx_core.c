@@ -5849,22 +5849,17 @@ static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 			container_of(self, struct synaptics_rmi4_data,
 			fb_notifier);
 
-
 	if (evdata && evdata->data && event == FB_EARLY_EVENT_BLANK) {
 		transition = evdata->data;
 		dev_info(rmi4_data->pdev->dev.parent, "%s, event = %ld blank = %d\n",
 				__func__, event, *transition);
 		if (*transition == FB_BLANK_POWERDOWN) {
-			bool run_work = !cancel_work_sync(&rmi4_data->pm_work);
 			rmi4_data->fb_ready = false;
-			if (run_work)
-				schedule_work(&rmi4_data->pm_work);
+			schedule_work(&rmi4_data->pm_work);
 		} else if ((*transition == FB_BLANK_NORMAL || *transition == FB_BLANK_UNBLANK)
 				&& (rmi4_data->fb_ready == false)) {
-			bool run_work = !cancel_work_sync(&rmi4_data->pm_work);
 			rmi4_data->fb_ready = true;
-			if (run_work)
-				schedule_work(&rmi4_data->pm_work);
+			schedule_work(&rmi4_data->pm_work);
 		}
 	}
 
