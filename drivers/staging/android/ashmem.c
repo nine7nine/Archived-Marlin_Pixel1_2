@@ -49,7 +49,7 @@
  * @unpinned_list:	The list of all ashmem areas
  * @file:		The shmem-based backing file
  * @size:		The size of the mapping, in bytes
- * @prot_masks:		The allowed protection bits, as vm_flags
+ * @prot_mask:		The allowed protection bits, as vm_flags
  *
  * The lifecycle of this structure is from our parent file's open() until
  * its release(). It is also protected by 'ashmem_mutex'
@@ -90,14 +90,14 @@ struct ashmem_range {
 /* LRU list of unpinned pages, protected by ashmem_mutex */
 static LIST_HEAD(ashmem_lru_list);
 
-/**
+/*
  * long lru_count - The count of pages on our LRU list.
  *
  * This is protected by ashmem_mutex.
  */
 static unsigned long lru_count;
 
-/**
+/*
  * ashmem_mutex - protects the list of and each individual ashmem_area
  *
  * Lock Ordering: ashmex_mutex -> i_mutex -> i_alloc_sem
@@ -338,23 +338,24 @@ static loff_t ashmem_llseek(struct file *file, loff_t offset, int origin)
 	rt_mutex_lock(&ashmem_mutex);
 
 	if (asma->size == 0) {
-		rt_mutex_unlock(&ashmem_mutex);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	if (!asma->file) {
-		rt_mutex_unlock(&ashmem_mutex);
-		return -EBADF;
+		ret = -EBADF;
+		goto out;
 	}
-
-	rt_mutex_unlock(&ashmem_mutex);
 
 	ret = vfs_llseek(asma->file, offset, origin);
 	if (ret < 0)
-		return ret;
+		goto out;
 
 	/** Copy f_pos from backing file, since f_ops->llseek() sets it */
 	file->f_pos = asma->file->f_pos;
+
+out:
+	rt_mutex_unlock(&ashmem_mutex);
 	return ret;
 }
 
@@ -621,7 +622,8 @@ static int ashmem_pin(struct ashmem_area *asma, size_t pgstart, size_t pgend)
 
 			/* Case #3: We overlap from the rear, so adjust it */
 			if (range->pgend <= pgend) {
-				range_shrink(range, range->pgstart, pgstart-1);
+				range_shrink(range, range->pgstart,
+					     pgstart - 1);
 				continue;
 			}
 
@@ -663,7 +665,7 @@ restart:
 		if (page_range_subsumed_by_range(range, pgstart, pgend))
 			return 0;
 		if (page_range_in_range(range, pgstart, pgend)) {
-			pgstart = min_t(size_t, range->pgstart, pgstart),
+			pgstart = min_t(size_t, range->pgstart, pgstart);
 			pgend = max_t(size_t, range->pgend, pgend);
 			purged |= range->purged;
 			range_del(range);
@@ -838,16 +840,16 @@ static int __init ashmem_init(void)
 	int ret;
 
 	ashmem_area_cachep = kmem_cache_create("ashmem_area_cache",
-					  sizeof(struct ashmem_area),
-					  0, 0, NULL);
+					       sizeof(struct ashmem_area),
+					       0, 0, NULL);
 	if (unlikely(!ashmem_area_cachep)) {
 		pr_err("failed to create slab cache\n");
 		return -ENOMEM;
 	}
 
 	ashmem_range_cachep = kmem_cache_create("ashmem_range_cache",
-					  sizeof(struct ashmem_range),
-					  0, 0, NULL);
+						sizeof(struct ashmem_range),
+						0, 0, NULL);
 	if (unlikely(!ashmem_range_cachep)) {
 		pr_err("failed to create slab cache\n");
 		return -ENOMEM;

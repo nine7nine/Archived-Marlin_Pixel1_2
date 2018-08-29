@@ -188,10 +188,10 @@ static void ion_buffer_add(struct ion_device *dev,
 
 /* this function should only be called while dev->lock is held */
 static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
-				     struct ion_device *dev,
-				     unsigned long len,
-				     unsigned long align,
-				     unsigned long flags)
+					    struct ion_device *dev,
+					    unsigned long len,
+					    unsigned long align,
+					    unsigned long flags)
 {
 	struct ion_buffer *buffer;
 	struct sg_table *table;
@@ -359,7 +359,7 @@ static void ion_buffer_remove_from_handle(struct ion_buffer *buffer)
 }
 
 static struct ion_handle *ion_handle_create(struct ion_client *client,
-				     struct ion_buffer *buffer)
+					    struct ion_buffer *buffer)
 {
 	struct ion_handle *handle;
 
@@ -500,7 +500,7 @@ static struct ion_handle *ion_handle_lookup(struct ion_client *client,
 }
 
 static struct ion_handle *ion_handle_get_by_id_nolock(struct ion_client *client,
-						int id)
+						      int id)
 {
 	struct ion_handle *handle;
 
@@ -512,7 +512,7 @@ static struct ion_handle *ion_handle_get_by_id_nolock(struct ion_client *client,
 }
 
 struct ion_handle *ion_handle_get_by_id(struct ion_client *client,
-						int id)
+					int id)
 {
 	struct ion_handle *handle;
 
@@ -757,7 +757,7 @@ static void *ion_buffer_kmap_get(struct ion_buffer *buffer)
 	}
 	vaddr = buffer->heap->ops->map_kernel(buffer->heap, buffer);
 	if (WARN_ONCE(vaddr == NULL,
-			"heap->ops->map_kernel should return ERR_PTR on error"))
+		      "heap->ops->map_kernel should return ERR_PTR on error"))
 		return ERR_PTR(-EINVAL);
 	if (IS_ERR(vaddr))
 		return vaddr;
@@ -910,14 +910,14 @@ static const struct file_operations debug_client_fops = {
 };
 
 static int ion_get_client_serial(const struct rb_root *root,
-					const unsigned char *name)
+				 const unsigned char *name)
 {
 	int serial = -1;
 	struct rb_node *node;
 
 	for (node = rb_first(root); node; node = rb_next(node)) {
 		struct ion_client *client = rb_entry(node, struct ion_client,
-						node);
+						     node);
 
 		if (strcmp(client->name, name))
 			continue;
@@ -944,8 +944,10 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 	get_task_struct(current->group_leader);
 	task_lock(current->group_leader);
 	pid = task_pid_nr(current->group_leader);
-	/* don't bother to store task struct for kernel threads,
-	   they can't be killed anyway */
+	/*
+	 * don't bother to store task struct for kernel threads,
+	 * they can't be killed anyway
+	 */
 	if (current->group_leader->flags & PF_KTHREAD) {
 		put_task_struct(current->group_leader);
 		task = NULL;
@@ -991,14 +993,14 @@ struct ion_client *ion_client_create(struct ion_device *dev,
 	rb_insert_color(&client->node, &dev->clients);
 
 	client->debug_root = debugfs_create_file(client->display_name, 0664,
-						dev->clients_debug_root,
-						client, &debug_client_fops);
+						 dev->clients_debug_root,
+						 client, &debug_client_fops);
 	if (!client->debug_root) {
 		char buf[256], *path;
 
 		path = dentry_path(dev->clients_debug_root, buf, 256);
 		pr_err("Failed to create client debugfs at %s/%s\n",
-			path, client->display_name);
+		       path, client->display_name);
 	}
 
 	up_write(&dev->lock);
@@ -1037,7 +1039,6 @@ void ion_client_destroy(struct ion_client *client)
 		put_task_struct(client->task);
 	rb_erase(&client->node, &dev->clients);
 	debugfs_remove_recursive(client->debug_root);
-
 	up_write(&dev->lock);
 
 	kfree(client->display_name);
@@ -1199,7 +1200,7 @@ static void ion_unmap_dma_buf(struct dma_buf_attachment *attachment,
 }
 
 void ion_pages_sync_for_device(struct device *dev, struct page *page,
-		size_t size, enum dma_data_direction dir)
+			        size_t size, enum dma_data_direction dir)
 {
 	struct scatterlist sg;
 
@@ -1239,7 +1240,7 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 
 		if (ion_buffer_page_is_dirty(page))
 			ion_pages_sync_for_device(dev, ion_buffer_page(page),
-							PAGE_SIZE, dir);
+						  PAGE_SIZE, dir);
 
 		ion_buffer_page_clean(buffer->pages + i);
 	}
@@ -1412,7 +1413,7 @@ static struct dma_buf_ops dma_buf_ops = {
 };
 
 struct dma_buf *ion_share_dma_buf(struct ion_client *client,
-						struct ion_handle *handle)
+				   struct ion_handle *handle)
 {
 	struct ion_buffer *buffer;
 	struct dma_buf *dmabuf;
@@ -1452,6 +1453,7 @@ int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
 	fd = dma_buf_fd(dmabuf, O_CLOEXEC);
 	if (fd < 0)
 		dma_buf_put(dmabuf);
+
 	return fd;
 }
 EXPORT_SYMBOL(ion_share_dma_buf_fd);
