@@ -17,7 +17,7 @@
  *  Copyright (C) 2007, Thomas Gleixner <tglx@linutronix.de>
  *
  *  Adaptive scheduling granularity, math enhancements by Peter Zijlstra
- *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra <pzijlstr@redhat.com>
+ *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
  */
 
 #include <linux/sched.h>
@@ -228,7 +228,7 @@ static void __update_inv_weight(struct load_weight *lw)
  *   OR
  * (delta_exec * (weight * lw->inv_weight)) >> WMULT_SHIFT
  *
- * Either weight := NICE_0_LOAD and lw \e prio_to_wmult[], in which case
+ * Either weight := NICE_0_LOAD and lw \e sched_prio_to_wmult[], in which case
  * we're guaranteed shift stays positive because inv_weight is guaranteed to
  * fit 32 bits, and NICE_0_LOAD gives another 10 bits; therefore shift >= 22.
  *
@@ -812,10 +812,6 @@ void post_init_entity_util_avg(struct sched_entity *se)
 		} else {
 			sa->util_avg = cap;
 		}
-		/*
-		 * If we wish to restore tuning via setting initial util,
-		 * this is where we should do it.
-		 */
 		sa->util_sum = sa->util_avg * LOAD_AVG_MAX;
 	}
 
@@ -840,7 +836,7 @@ void post_init_entity_util_avg(struct sched_entity *se)
 	attach_entity_cfs_rq(se);
 }
 
-#else
+#else /* !CONFIG_SMP */
 void init_entity_runnable_average(struct sched_entity *se)
 {
 }
@@ -1723,7 +1719,7 @@ static int task_numa_migrate(struct task_struct *p)
 
 		.best_task = NULL,
 		.best_imp = 0,
-		.best_cpu = -1
+		.best_cpu = -1,
 	};
 	struct sched_domain *sd;
 	unsigned long taskweight, groupweight;
@@ -2632,10 +2628,12 @@ account_entity_dequeue(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	update_load_sub(&cfs_rq->load, se->load.weight);
 	if (!parent_entity(se))
 		update_load_sub(&rq_of(cfs_rq)->load, se->load.weight);
+#ifdef CONFIG_SMP
 	if (entity_is_task(se)) {
 		account_numa_dequeue(rq_of(cfs_rq), task_of(se));
 		list_del_init(&se->group_node);
 	}
+#endif
 	cfs_rq->nr_running--;
 }
 
@@ -2675,6 +2673,7 @@ static inline long calc_cfs_shares(struct cfs_rq *cfs_rq, struct task_group *tg)
 	return tg->shares;
 }
 # endif /* CONFIG_SMP */
+
 static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 			    unsigned long weight)
 {
@@ -3209,25 +3208,25 @@ static inline void set_tg_cfs_propagate(struct cfs_rq *cfs_rq) {}
 
 static inline void cfs_rq_util_change(struct cfs_rq *cfs_rq)
 {
-        if (&this_rq()->cfs == cfs_rq) {
-                /*
-                 * There are a few boundary cases this might miss but it should
-                 * get called often enough that that should (hopefully) not be
-                 * a real problem -- added to that it only calls on the local
-                 * CPU, so if we enqueue remotely we'll miss an update, but
-                 * the next tick/schedule should update.
-                 *
-                 * It will not get called when we go idle, because the idle
-                 * thread is a different class (!fair), nor will the utilization
-                 * number include things like RT tasks.
-                 *
-                 * As is, the util number is not freq-invariant (we'd have to
-                 * implement arch_scale_freq_capacity() for that).
-                 *
-                 * See cpu_util().
-                 */
-                cpufreq_update_util(rq_of(cfs_rq), 0);
-        }
+	if (&this_rq()->cfs == cfs_rq) {
+		/*
+		 * There are a few boundary cases this might miss but it should
+		 * get called often enough that that should (hopefully) not be
+		 * a real problem -- added to that it only calls on the local
+		 * CPU, so if we enqueue remotely we'll miss an update, but
+		 * the next tick/schedule should update.
+		 *
+		 * It will not get called when we go idle, because the idle
+		 * thread is a different class (!fair), nor will the utilization
+		 * number include things like RT tasks.
+		 *
+		 * As is, the util number is not freq-invariant (we'd have to
+		 * implement arch_scale_freq_capacity() for that).
+		 *
+		 * See cpu_util().
+		 */
+		cpufreq_update_util(rq_of(cfs_rq), 0);
+	}
 }
 
 static inline u64 cfs_rq_clock_task(struct cfs_rq *cfs_rq);
@@ -5723,7 +5722,6 @@ static int compute_energy(struct energy_env *eenv)
 		 * when we took visit_cpus.
 		 */
 		sd = rcu_dereference(per_cpu(sd_scs, cpu));
-
 		if (sd && sd->parent)
 			sg_shared_cap = sd->parent->groups;
 
@@ -5822,21 +5820,19 @@ static inline int select_energy_cpu_idx(struct energy_env *eenv)
 
 	sd_cpu = eenv->cpu[EAS_CPU_PRV].cpu_id;
 	sd = rcu_dereference(per_cpu(sd_ea, sd_cpu));
-
 	if (!sd)
 		return EAS_CPU_PRV;
 
 	cpumask_clear(&eenv->cpus_mask);
 	for (cpu_idx = EAS_CPU_PRV; cpu_idx < EAS_CPU_CNT; ++cpu_idx) {
 		int cpu = eenv->cpu[cpu_idx].cpu_id;
- 
+
 		if (cpu < 0)
 			continue;
 		cpumask_set_cpu(cpu, &eenv->cpus_mask);
 	}
 
 	sg = sd->groups;
-
 	do {
 		/* Skip SGs which do not contains a candidate CPU */
 		if (!cpumask_intersects(&eenv->cpus_mask, sched_group_cpus(sg)))
@@ -5870,7 +5866,7 @@ static inline int select_energy_cpu_idx(struct energy_env *eenv)
 	/*
 	 * Compare the other CPU candidates to find a CPU which can be
 	 * more energy efficient then EAS_CPU_PRV
- 	 */
+	 */
 	for (cpu_idx = EAS_CPU_NXT; cpu_idx < EAS_CPU_CNT; ++cpu_idx) {
 		/* Skip not valid scheduled candidates */
 		if (eenv->cpu[cpu_idx].cpu_id < 0)
@@ -5892,11 +5888,11 @@ static inline int select_energy_cpu_idx(struct energy_env *eenv)
 	}
 
 	return eenv->next_idx;
-	
 }
 
 /*
  * Detect M:N waker/wakee relationships via a switching-frequency heuristic.
+ *
  * A waker of many should wake a different task than the one last awakened
  * at a frequency roughly N times higher than one of its wakees.  In order
  * to determine whether we should let the load spread vs consolodating to
@@ -5994,7 +5990,7 @@ static inline unsigned long task_util(struct task_struct *p)
 #ifdef CONFIG_SCHED_WALT
 	if (!walt_disabled && sysctl_sched_use_walt_task_util) {
 		unsigned long demand = p->ravg.demand;
-		return (demand << 10) / walt_ravg_window;
+		return (demand << SCHED_CAPACITY_SHIFT) / walt_ravg_window;
 	}
 #endif
 	return p->se.avg.util_avg;
@@ -6287,14 +6283,14 @@ find_idlest_group_cpu(struct sched_group *group, struct task_struct *p, int this
 	}
 
 	return shallowest_idle_cpu != -1 ? shallowest_idle_cpu : least_loaded_cpu;
- }
+}
 
 static inline int find_idlest_cpu(struct sched_domain *sd, struct task_struct *p,
 				  int cpu, int prev_cpu, int sd_flag)
 {
-	int new_cpu = cpu;
 	int wu = sd_flag & SD_BALANCE_WAKE;
 	int cas_cpu = -1;
+	int new_cpu = cpu;
 
 	if (wu) {
 		schedstat_inc(p->se.statistics.nr_wakeups_cas_attempts);
@@ -6393,6 +6389,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 			if (!cpumask_intersects(sched_group_cpus(sg),
 						tsk_cpus_allowed(p)))
 				goto next;
+
 
 			if (sysctl_sched_cstate_aware) {
 				for_each_cpu_and(i, tsk_cpus_allowed(p), sched_group_cpus(sg)) {
@@ -6804,7 +6801,6 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu, int sync
 		}
 	}
 
-	rcu_read_lock();
 #ifdef CONFIG_CGROUP_SCHEDTUNE
 	boosted = schedtune_task_boost(p) > 0;
 	prefer_idle = schedtune_prefer_idle(p) > 0;
@@ -6813,7 +6809,7 @@ static int select_energy_cpu_brute(struct task_struct *p, int prev_cpu, int sync
 	prefer_idle = 0;
 #endif
 
-
+	rcu_read_lock();
 
 	sd = rcu_dereference(per_cpu(sd_ea, prev_cpu));
 	if (!sd) {
@@ -7438,7 +7434,7 @@ static bool yield_to_task_fair(struct rq *rq, struct task_struct *p, bool preemp
  *
  * The adjacency matrix of the resulting graph is given by:
  *
- *             log_2 n     
+ *             log_2 n
  *   A_i,j = \Union     (i % 2^k == 0) && i / 2^(k+1) == j / 2^(k+1)  (6)
  *             k = 0
  *
@@ -7484,7 +7480,7 @@ static bool yield_to_task_fair(struct rq *rq, struct task_struct *p, bool preemp
  *
  * [XXX write more on how we solve this.. _after_ merging pjt's patches that
  *      rewrite all of this once again.]
- */ 
+ */
 
 static unsigned long __read_mostly max_load_balance_interval = HZ/10;
 
@@ -8217,7 +8213,7 @@ void update_group_capacity(struct sched_domain *sd, int cpu)
 		/*
 		 * !SD_OVERLAP domains can assume that child groups
 		 * span the current group.
-		 */ 
+		 */
 
 		group = child->groups;
 		do {
@@ -9659,9 +9655,9 @@ static int active_load_balance_cpu_stop(void *data)
 			 * We want to potentially lower env.src_cpu's OPP.
 			 */
 			update_capacity_of(env.src_cpu);
-		}
-		else
+		} else {
 			schedstat_inc(sd->alb_failed);
+		}
 	}
 	rcu_read_unlock();
 out_unlock:

@@ -1370,7 +1370,7 @@ static void __migrate_swap_task(struct task_struct *p, int cpu)
 		/*
 		 * Task isn't running anymore; make it appear like we migrated
 		 * it before it went to sleep. This means on wakeup we make the
-		 * previous cpu our targer instead of where it really is.
+		 * previous cpu our target instead of where it really is.
 		 */
 		p->wake_cpu = cpu;
 	}
@@ -2342,9 +2342,11 @@ int sysctl_numa_balancing(struct ctl_table *table, int write,
 #endif
 #endif
 
-DEFINE_STATIC_KEY_FALSE(sched_schedstats);
-
 #ifdef CONFIG_SCHEDSTATS
+
+DEFINE_STATIC_KEY_FALSE(sched_schedstats);
+static bool __initdata __sched_schedstats = false;
+
 static void set_schedstats(bool enabled)
 {
 	if (enabled)
@@ -2367,11 +2369,16 @@ static int __init setup_schedstats(char *str)
 	if (!str)
 		goto out;
 
+	/*
+	 * This code is called before jump labels have been set up, so we can't
+	 * change the static branch directly just yet.  Instead set a temporary
+	 * variable so init_schedstats() can do it later.
+	 */
 	if (!strcmp(str, "enable")) {
-		set_schedstats(true);
+		__sched_schedstats = true;
 		ret = 1;
 	} else if (!strcmp(str, "disable")) {
-		set_schedstats(false);
+		__sched_schedstats = false;
 		ret = 1;
 	}
 out:
@@ -2381,6 +2388,11 @@ out:
 	return ret;
 }
 __setup("schedstats=", setup_schedstats);
+
+static void __init init_schedstats(void)
+{
+	set_schedstats(__sched_schedstats);
+}
 
 #ifdef CONFIG_PROC_SYSCTL
 int sysctl_schedstats(struct ctl_table *table, int write,
@@ -2402,8 +2414,10 @@ int sysctl_schedstats(struct ctl_table *table, int write,
 		set_schedstats(state);
 	return err;
 }
-#endif
-#endif
+#endif /* CONFIG_PROC_SYSCTL */
+#else  /* !CONFIG_SCHEDSTATS */
+static inline void init_schedstats(void) {}
+#endif /* CONFIG_SCHEDSTATS */
 
 /*
  * fork()/clone()-time setup:
@@ -2479,7 +2493,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 		p->sched_class->task_fork(p);
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 
-#if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT)
+#ifdef CONFIG_SCHED_INFO
 	if (likely(sched_info_on()))
 		memset(&p->sched_info, 0, sizeof(p->sched_info));
 #endif
@@ -5439,7 +5453,7 @@ void init_idle(struct task_struct *idle, int cpu)
 
 	rq->curr = rq->idle = idle;
 	idle->on_rq = TASK_ON_RQ_QUEUED;
-#if defined(CONFIG_SMP)
+#ifdef CONFIG_SMP
 	idle->on_cpu = 1;
 #endif
 	raw_spin_unlock(&rq->lock);
@@ -5454,7 +5468,7 @@ void init_idle(struct task_struct *idle, int cpu)
 	idle->sched_class = &idle_sched_class;
 	ftrace_graph_init_idle_task(idle, cpu);
 	vtime_init_idle(idle, cpu);
-#if defined(CONFIG_SMP)
+#ifdef CONFIG_SMP
 	sprintf(idle->comm, "%s/%d", INIT_TASK_COMM, cpu);
 #endif
 }
@@ -5942,6 +5956,8 @@ static void sched_domain_debug(struct sched_domain *sd, int cpu)
 	}
 }
 #else /* !CONFIG_SCHED_DEBUG */
+
+# define sched_debug_enabled 0
 # define sched_domain_debug(sd, cpu) do { } while (0)
 static inline bool sched_debug(void)
 {
@@ -6744,7 +6760,7 @@ static int sched_domains_curr_level;
  * Odd one out, which beside describing the topology has a quirk also
  * prescribes the desired behaviour that goes along with it:
  *
- * SD_ASYM_PACKING        - describes SMT quirks
+ *   SD_ASYM_PACKING        - describes SMT quirks
  */
 #define TOPOLOGY_SD_FLAGS		\
 	(SD_SHARE_CPUCAPACITY |		\
@@ -7154,6 +7170,7 @@ static void sched_domains_numa_masks_set(int cpu)
 static void sched_domains_numa_masks_clear(int cpu)
 {
 	int i, j;
+
 	for (i = 0; i < sched_domains_numa_levels; i++) {
 		for (j = 0; j < nr_node_ids; j++)
 			cpumask_clear_cpu(cpu, sched_domains_numa_masks[i][j]);
@@ -7808,7 +7825,6 @@ void __init sched_init(void)
 	INIT_LIST_HEAD(&root_task_group.children);
 	INIT_LIST_HEAD(&root_task_group.siblings);
 	autogroup_init(&init_task);
-
 #endif /* CONFIG_CGROUP_SCHED */
 
 	for_each_possible_cpu(i) {
@@ -7890,7 +7906,7 @@ void __init sched_init(void)
 #ifdef CONFIG_NO_HZ_FULL
 		rq->last_sched_tick = 0;
 #endif
-#endif
+#endif /* CONFIG_SMP */
 		init_rq_hrtick(rq);
 		atomic_set(&rq->nr_iowait, 0);
 	}
@@ -7931,6 +7947,8 @@ void __init sched_init(void)
 	set_cpu_rq_start_time();
 #endif
 	init_sched_fair_class();
+
+	init_schedstats();
 
 	scheduler_running = 1;
 }
@@ -8631,6 +8649,7 @@ cpu_cgroup_css_alloc(struct cgroup_subsys_state *parent_css)
 	return &tg->css;
 }
 
+/* Expose task group only after completing cgroup initialization */
 static int cpu_cgroup_css_online(struct cgroup_subsys_state *css)
 {
 	struct task_group *tg = css_tg(css);
