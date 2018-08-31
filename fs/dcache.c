@@ -232,7 +232,7 @@ static inline int dentry_cmp(const struct dentry *dentry, const unsigned char *c
 	 * early because the data cannot match (there can
 	 * be no NUL in the ct/tcount data)
 	 */
-	cs = READ_ONCE(dentry->d_name.name);
+	cs = ACCESS_ONCE(dentry->d_name.name);
 	smp_read_barrier_depends();
 	return dentry_string_cmp(cs, ct, tcount);
 }
@@ -569,7 +569,7 @@ static inline struct dentry *lock_parent(struct dentry *dentry)
 	rcu_read_lock();
 	spin_unlock(&dentry->d_lock);
 again:
-	parent = READ_ONCE(dentry->d_parent);
+	parent = ACCESS_ONCE(dentry->d_parent);
 	spin_lock(&parent->d_lock);
 	/*
 	 * We can't blindly lock dentry until we are sure
@@ -665,7 +665,7 @@ static inline bool fast_dput(struct dentry *dentry)
 	 * around with a zero refcount.
 	 */
 	smp_rmb();
-	d_flags = READ_ONCE(dentry->d_flags);
+	d_flags = ACCESS_ONCE(dentry->d_flags);
 	d_flags &= DCACHE_REFERENCED | DCACHE_LRU_LIST;
 
 	/* Nothing to do? Dropping the reference was all we needed? */
@@ -794,11 +794,11 @@ struct dentry *dget_parent(struct dentry *dentry)
 	 * locking.
 	 */
 	rcu_read_lock();
-	ret = READ_ONCE(dentry->d_parent);
+	ret = ACCESS_ONCE(dentry->d_parent);
 	gotref = lockref_get_not_zero(&ret->d_lockref);
 	rcu_read_unlock();
 	if (likely(gotref)) {
-		if (likely(ret == READ_ONCE(dentry->d_parent)))
+		if (likely(ret == ACCESS_ONCE(dentry->d_parent)))
 			return ret;
 		dput(ret);
 	}
@@ -2842,8 +2842,8 @@ static int prepend(char **buffer, int *buflen, const char *str, int namelen)
  */
 static int prepend_name(char **buffer, int *buflen, struct qstr *name)
 {
-	const char *dname = READ_ONCE(name->name);
-	u32 dlen = READ_ONCE(name->len);
+	const char *dname = ACCESS_ONCE(name->name);
+	u32 dlen = ACCESS_ONCE(name->len);
 	char *p;
 
 	smp_read_barrier_depends();
@@ -2908,7 +2908,7 @@ restart:
 		struct dentry * parent;
 
 		if (dentry == vfsmnt->mnt_root || IS_ROOT(dentry)) {
-			struct mount *parent = READ_ONCE(mnt->mnt_parent);
+			struct mount *parent = ACCESS_ONCE(mnt->mnt_parent);
 			/* Escaped? */
 			if (dentry != vfsmnt->mnt_root) {
 				bptr = *buffer;
@@ -2918,7 +2918,7 @@ restart:
 			}
 			/* Global root? */
 			if (mnt != parent) {
-				dentry = READ_ONCE(mnt->mnt_mountpoint);
+				dentry = ACCESS_ONCE(mnt->mnt_mountpoint);
 				mnt = parent;
 				vfsmnt = &mnt->mnt;
 				continue;

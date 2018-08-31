@@ -518,7 +518,7 @@ ip6_tnl_err(struct sk_buff *skb, __u8 ipproto, struct inet6_skb_parm *opt,
 					&ipv6h->saddr)) == NULL)
 		goto out;
 
-	tproto = READ_ONCE(t->parms.proto);
+	tproto = ACCESS_ONCE(t->parms.proto);
 	if (tproto != ipproto && tproto != 0)
 		goto out;
 
@@ -829,7 +829,7 @@ static int ip6_tnl_rcv(struct sk_buff *skb, __u16 protocol,
 					&ipv6h->daddr)) != NULL) {
 		struct pcpu_sw_netstats *tstats;
 
-		tproto = READ_ONCE(t->parms.proto);
+		tproto = ACCESS_ONCE(t->parms.proto);
 		if (tproto != ipproto && tproto != 0) {
 			rcu_read_unlock();
 			goto discard;
@@ -1142,7 +1142,7 @@ ip4ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev)
 	u8 tproto;
 	int err;
 
-	tproto = READ_ONCE(t->parms.proto);
+	tproto = ACCESS_ONCE(t->parms.proto);
 	if (tproto != IPPROTO_IPIP && tproto != 0)
 		return -1;
 
@@ -1187,7 +1187,7 @@ ip6ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev)
 	u8 tproto;
 	int err;
 
-	tproto = READ_ONCE(t->parms.proto);
+	tproto = ACCESS_ONCE(t->parms.proto);
 	if ((tproto != IPPROTO_IPV6 && tproto != 0) ||
 	    ip6_tnl_addr_conflict(t, ipv6h))
 		return -1;

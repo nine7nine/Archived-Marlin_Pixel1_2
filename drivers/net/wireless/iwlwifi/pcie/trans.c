@@ -1393,12 +1393,12 @@ static int iwl_trans_pcie_wait_txq_empty(struct iwl_trans *trans, u32 txq_bm)
 		IWL_DEBUG_TX_QUEUES(trans, "Emptying queue %d...\n", cnt);
 		txq = &trans_pcie->txq[cnt];
 		q = &txq->q;
-		wr_ptr = READ_ONCE(q->write_ptr);
+		wr_ptr = ACCESS_ONCE(q->write_ptr);
 
-		while (q->read_ptr != READ_ONCE(q->write_ptr) &&
+		while (q->read_ptr != ACCESS_ONCE(q->write_ptr) &&
 		       !time_after(jiffies,
 				   now + msecs_to_jiffies(IWL_FLUSH_WAIT_MS))) {
-			u8 write_ptr = READ_ONCE(q->write_ptr);
+			u8 write_ptr = ACCESS_ONCE(q->write_ptr);
 
 			if (WARN_ONCE(wr_ptr != write_ptr,
 				      "WR pointer moved while flushing %d -> %d\n",

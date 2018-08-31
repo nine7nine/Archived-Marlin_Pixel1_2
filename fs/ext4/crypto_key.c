@@ -100,7 +100,7 @@ void ext4_free_encryption_info(struct inode *inode,
 	struct ext4_crypt_info *prev;
 
 	if (ci == NULL)
-		ci = READ_ONCE(ei->i_crypt_info);
+		ci = ACCESS_ONCE(ei->i_crypt_info);
 	if (ci == NULL)
 		return;
 	prev = cmpxchg(&ei->i_crypt_info, ci, NULL);

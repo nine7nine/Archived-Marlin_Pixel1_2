@@ -115,7 +115,7 @@ nft_do_chain(struct nft_pktinfo *pkt, const struct nf_hook_ops *ops)
 	 * Cache cursor to avoid problems in case that the cursor is updated
 	 * while traversing the ruleset.
 	 */
-	unsigned int gencursor = READ_ONCE(chain->net->nft.gencursor);
+	unsigned int gencursor = ACCESS_ONCE(chain->net->nft.gencursor);
 
 do_chain:
 	rulenum = 0;

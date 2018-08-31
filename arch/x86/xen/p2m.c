@@ -538,7 +538,7 @@ static bool alloc_p2m(unsigned long pfn)
 	mididx = p2m_mid_index(pfn);
 
 	top_p = &p2m_top[topidx];
-	mid = READ_ONCE(*top_p);
+	mid = ACCESS_ONCE(*top_p);
 
 	if (mid == p2m_mid_missing) {
 		/* Mid level is missing, allocate a new one */
@@ -553,7 +553,7 @@ static bool alloc_p2m(unsigned long pfn)
 	}
 
 	top_mfn_p = &p2m_top_mfn[topidx];
-	mid_mfn = READ_ONCE(p2m_top_mfn_p[topidx]);
+	mid_mfn = ACCESS_ONCE(p2m_top_mfn_p[topidx]);
 
 	BUG_ON(virt_to_mfn(mid_mfn) != *top_mfn_p);
 
@@ -580,7 +580,7 @@ static bool alloc_p2m(unsigned long pfn)
 		}
 	}
 
-	p2m_orig = READ_ONCE(p2m_top[topidx][mididx]);
+	p2m_orig = ACCESS_ONCE(p2m_top[topidx][mididx]);
 	if (p2m_orig == p2m_identity || p2m_orig == p2m_missing) {
 		/* p2m leaf page is missing */
 		unsigned long *p2m;

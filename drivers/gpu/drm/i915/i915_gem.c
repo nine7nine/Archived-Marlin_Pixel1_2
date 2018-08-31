@@ -1160,7 +1160,7 @@ static int __wait_seqno(struct intel_engine_cs *ring, u32 seqno,
 	struct drm_device *dev = ring->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	const bool irq_test_in_progress =
-		READ_ONCE(dev_priv->gpu_error.test_irq_rings) & intel_ring_flag(ring);
+		ACCESS_ONCE(dev_priv->gpu_error.test_irq_rings) & intel_ring_flag(ring);
 	DEFINE_WAIT(wait);
 	unsigned long timeout_expire;
 	s64 before, now;

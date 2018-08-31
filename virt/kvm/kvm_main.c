@@ -1881,7 +1881,7 @@ void kvm_vcpu_on_spin(struct kvm_vcpu *me)
 				continue;
 			} else if (pass && i > last_boosted_vcpu)
 				break;
-			if (!READ_ONCE(vcpu->preempted))
+			if (!ACCESS_ONCE(vcpu->preempted))
 				continue;
 			if (vcpu == me)
 				continue;

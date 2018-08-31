@@ -474,7 +474,7 @@ static struct ip_ident_bucket *ip_idents __read_mostly;
 u32 ip_idents_reserve(u32 hash, int segs)
 {
 	struct ip_ident_bucket *bucket = ip_idents + hash % IP_IDENTS_SZ;
-	u32 old = READ_ONCE(bucket->stamp32);
+	u32 old = ACCESS_ONCE(bucket->stamp32);
 	u32 now = (u32)jiffies;
 	u32 delta = 0;
 

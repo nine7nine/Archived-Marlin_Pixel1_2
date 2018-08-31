@@ -213,7 +213,7 @@ static struct macvtap_queue *macvtap_get_queue(struct net_device *dev,
 	 * and validate that the result isn't NULL - in case we are
 	 * racing against queue removal.
 	 */
-	int numvtaps = READ_ONCE(vlan->numvtaps);
+	int numvtaps = ACCESS_ONCE(vlan->numvtaps);
 	__u32 rxq;
 
 	if (!numvtaps)

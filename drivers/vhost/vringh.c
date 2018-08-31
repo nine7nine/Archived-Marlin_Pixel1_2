@@ -794,13 +794,13 @@ EXPORT_SYMBOL(vringh_need_notify_user);
 /* Kernelspace access helpers. */
 static inline int getu16_kern(u16 *val, const u16 *p)
 {
-	*val = READ_ONCE(*p);
+	*val = ACCESS_ONCE(*p);
 	return 0;
 }
 
 static inline int putu16_kern(u16 *p, u16 val)
 {
-	WRITE_ONCE(*p, val);
+	ACCESS_ONCE(*p) = val;
 	return 0;
 }
 

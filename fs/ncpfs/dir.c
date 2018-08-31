@@ -125,7 +125,7 @@ static inline int ncp_case_sensitive(const struct inode *i)
 static int 
 ncp_hash_dentry(const struct dentry *dentry, struct qstr *this)
 {
-	struct inode *inode = READ_ONCE(dentry->d_inode);
+	struct inode *inode = ACCESS_ONCE(dentry->d_inode);
 
 	if (!inode)
 		return 0;
@@ -160,7 +160,7 @@ ncp_compare_dentry(const struct dentry *parent, const struct dentry *dentry,
 	if (len != name->len)
 		return 1;
 
-	pinode = READ_ONCE(parent->d_inode);
+	pinode = ACCESS_ONCE(parent->d_inode);
 	if (!pinode)
 		return 1;
 

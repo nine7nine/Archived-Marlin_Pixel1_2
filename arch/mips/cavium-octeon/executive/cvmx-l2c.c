@@ -301,7 +301,7 @@ static void fault_in(uint64_t addr, int len)
 	 */
 	CVMX_DCACHE_INVALIDATE;
 	while (len > 0) {
-		READ_ONCE(*ptr);
+		ACCESS_ONCE(*ptr);
 		len -= CVMX_CACHE_LINE_SIZE;
 		ptr += CVMX_CACHE_LINE_SIZE;
 	}

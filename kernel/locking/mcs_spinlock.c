@@ -113,7 +113,7 @@ bool osq_lock(struct optimistic_spin_queue *lock)
 	 */
 	smp_wmb();
 
-	WRITE_ONCE(prev->next, node);
+	ACCESS_ONCE(prev->next) = node;
 
 	/*
 	 * Normally @prev is untouchable after the above store; because at that
@@ -163,7 +163,7 @@ unqueue:
 		 * Or we race against a concurrent unqueue()'s step-B, in which
 		 * case its step-C will write us a new @node->prev pointer.
 		 */
-		prev = READ_ONCE(node->prev);
+		prev = ACCESS_ONCE(node->prev);
 	}
 
 	/*
@@ -185,8 +185,8 @@ unqueue:
 	 * it will wait in Step-A.
 	 */
 
-	WRITE_ONCE(next->prev, prev);
-	WRITE_ONCE(prev->next, next);
+	ACCESS_ONCE(next->prev) = prev;
+	ACCESS_ONCE(prev->next) = next;
 
 	return false;
 }
@@ -208,13 +208,13 @@ void osq_unlock(struct optimistic_spin_queue *lock)
 	node = this_cpu_ptr(&osq_node);
 	next = xchg(&node->next, NULL);
 	if (next) {
-		WRITE_ONCE(next->locked, 1);
+		ACCESS_ONCE(next->locked) = 1;
 		return;
 	}
 
 	next = osq_wait_next(lock, node, NULL);
 	if (next)
-		WRITE_ONCE(next->locked, 1);
+		ACCESS_ONCE(next->locked) = 1;
 }
 
 #endif

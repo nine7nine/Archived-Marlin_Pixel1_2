@@ -105,7 +105,7 @@ int ovl_permission(struct inode *inode, int mask)
 	realdentry = ovl_entry_real(oe, &is_upper);
 
 	/* Careful in RCU walk mode */
-	realinode = READ_ONCE(realdentry->d_inode);
+	realinode = ACCESS_ONCE(realdentry->d_inode);
 	if (!realinode) {
 		WARN_ON(!(mask & MAY_NOT_BLOCK));
 		err = -ENOENT;

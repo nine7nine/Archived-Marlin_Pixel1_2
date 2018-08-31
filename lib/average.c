@@ -53,10 +53,12 @@ EXPORT_SYMBOL(ewma_init);
  */
 struct ewma *ewma_add(struct ewma *avg, unsigned long val)
 {
-	unsigned long internal = READ_ONCE(avg->internal);
+	unsigned long internal = ACCESS_ONCE(avg->internal);
 
-	WRITE_ONCE(avg->internal,
-		   internal ? (((internal << avg->weight) - internal) + (val << avg->factor)) >> avg->weight : (val << avg->factor));
+	ACCESS_ONCE(avg->internal) = internal ?
+		(((internal << avg->weight) - internal) +
+			(val << avg->factor)) >> avg->weight :
+		(val << avg->factor);
 	return avg;
 }
 EXPORT_SYMBOL(ewma_add);

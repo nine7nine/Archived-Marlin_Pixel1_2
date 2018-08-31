@@ -809,7 +809,7 @@ static int proc_sys_compare(const struct dentry *parent, const struct dentry *de
 	/* Although proc doesn't have negative dentries, rcu-walk means
 	 * that inode here can be NULL */
 	/* AV: can it, indeed? */
-	inode = READ_ONCE(dentry->d_inode);
+	inode = ACCESS_ONCE(dentry->d_inode);
 	if (!inode)
 		return 1;
 	if (name->len != len)

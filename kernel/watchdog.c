@@ -946,7 +946,7 @@ int proc_watchdog_thresh(struct ctl_table *table, int write,
 
 	mutex_lock(&watchdog_proc_mutex);
 
-	old = READ_ONCE(watchdog_thresh);
+	old = ACCESS_ONCE(watchdog_thresh);
 	err = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 
 	if (err || !write)

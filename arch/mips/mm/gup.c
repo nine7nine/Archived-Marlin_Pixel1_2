@@ -30,7 +30,7 @@ retry:
 
 	return pte;
 #else
-	return READ_ONCE(*ptep);
+	return ACCESS_ONCE(*ptep);
 #endif
 }
 

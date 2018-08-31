@@ -942,7 +942,7 @@ struct vfio_devices {
 static int vfio_pci_get_devs(struct pci_dev *pdev, void *data)
 {
 	struct vfio_devices *devs = data;
-	struct pci_driver *pci_drv = READ_ONCE(pdev->driver);
+	struct pci_driver *pci_drv = ACCESS_ONCE(pdev->driver);
 
 	if (pci_drv != &vfio_pci_driver)
 		return -EBUSY;

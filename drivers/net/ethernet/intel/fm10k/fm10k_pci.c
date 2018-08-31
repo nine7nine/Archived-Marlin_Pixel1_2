@@ -62,7 +62,7 @@ u16 fm10k_read_pci_cfg_word(struct fm10k_hw *hw, u32 reg)
 
 u32 fm10k_read_reg(struct fm10k_hw *hw, int reg)
 {
-	u32 __iomem *hw_addr = READ_ONCE(hw->hw_addr);
+	u32 __iomem *hw_addr = ACCESS_ONCE(hw->hw_addr);
 	u32 value = 0;
 
 	if (FM10K_REMOVED(hw_addr))
@@ -1244,7 +1244,7 @@ static s32 fm10k_1588_msg_pf(struct fm10k_hw *hw, u32 **results,
 	}
 
 	/* if there is no iov_data then there is no mailboxes to process */
-	if (!READ_ONCE(interface->iov_data))
+	if (!ACCESS_ONCE(interface->iov_data))
 		return FM10K_ERR_PARAM;
 
 	rcu_read_lock();
