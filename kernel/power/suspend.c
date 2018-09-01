@@ -579,6 +579,8 @@ static void pm_suspend_marker(char *annotation)
 		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 }
 
+bool pm_in_action;
+
 /**
  * pm_suspend - Externally visible function for suspending the system.
  * @state: System sleep state to enter.
@@ -595,6 +597,7 @@ int pm_suspend(suspend_state_t state)
 
 	pm_suspend_marker("entry");
 	pm_suspend_stats(true);
+	pm_in_action = true;
 	error = enter_state(state);
 	if (error) {
 		suspend_stats.fail++;
@@ -602,6 +605,7 @@ int pm_suspend(suspend_state_t state)
 	} else {
 		suspend_stats.success++;
 	}
+	pm_in_action = false;
 	pm_suspend_stats(false);
 	pm_suspend_marker("exit");
 	return error;
