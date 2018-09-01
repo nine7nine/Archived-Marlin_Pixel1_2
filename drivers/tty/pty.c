@@ -44,7 +44,7 @@ static void pty_close(struct tty_struct *tty, struct file *filp)
 	if (tty->driver->subtype == PTY_TYPE_MASTER)
 		WARN_ON(tty->count > 1);
 	else {
-		if (test_bit(TTY_IO_ERROR, &tty->flags))
+		if (tty_io_error(tty))
 			return;
 		if (tty->count > 2)
 			return;
@@ -219,16 +219,11 @@ static int pty_signal(struct tty_struct *tty, int sig)
 static void pty_flush_buffer(struct tty_struct *tty)
 {
 	struct tty_struct *to = tty->link;
-	struct tty_ldisc *ld;
 
 	if (!to)
 		return;
 
-	ld = tty_ldisc_ref(to);
-	tty_buffer_flush(to, ld);
-	if (ld)
-		tty_ldisc_deref(ld);
-
+	tty_buffer_flush(to, NULL);
 	if (to->packet) {
 		spin_lock_irq(&tty->ctrl_lock);
 		tty->ctrl_status |= TIOCPKT_FLUSHWRITE;
@@ -264,8 +259,7 @@ static void pty_set_termios(struct tty_struct *tty,
 {
 	/* See if packet mode change of state. */
 	if (tty->link && tty->link->packet) {
-		int extproc = (old_termios->c_lflag & EXTPROC) |
-				(tty->termios.c_lflag & EXTPROC);
+		int extproc = (old_termios->c_lflag & EXTPROC) | L_EXTPROC(tty);
 		int old_flow = ((old_termios->c_iflag & IXON) &&
 				(old_termios->c_cc[VSTOP] == '\023') &&
 				(old_termios->c_cc[VSTART] == '\021'));
@@ -407,13 +401,8 @@ static int pty_common_install(struct tty_driver *driver, struct tty_struct *tty,
 	if (legacy) {
 		/* We always use new tty termios data so we can do this
 		   the easy way .. */
-		retval = tty_init_termios(tty);
-		if (retval)
-			goto err_deinit_tty;
-
-		retval = tty_init_termios(o_tty);
-		if (retval)
-			goto err_free_termios;
+		tty_init_termios(tty);
+		tty_init_termios(o_tty);
 
 		driver->other->ttys[idx] = o_tty;
 		driver->ttys[idx] = tty;
@@ -445,12 +434,7 @@ static int pty_common_install(struct tty_driver *driver, struct tty_struct *tty,
 	tty->count++;
 	o_tty->count++;
 	return 0;
-err_free_termios:
-	if (legacy)
-		tty_free_termios(tty);
-err_deinit_tty:
-	deinitialize_tty_struct(o_tty);
-	free_tty_struct(o_tty);
+
 err_put_module:
 	module_put(driver->other->owner);
 err:
@@ -667,20 +651,13 @@ static struct tty_struct *pts_unix98_lookup(struct tty_driver *driver,
 	return tty;
 }
 
-/* We have no need to install and remove our tty objects as devpts does all
-   the work for us */
-
 static int pty_unix98_install(struct tty_driver *driver, struct tty_struct *tty)
 {
 	return pty_common_install(driver, tty, false);
 }
 
-static void pty_unix98_remove(struct tty_driver *driver, struct tty_struct *tty)
-{
-}
-
 /* this is called once with whichever end is closed last */
-static void pty_unix98_shutdown(struct tty_struct *tty)
+static void pty_unix98_remove(struct tty_driver *driver, struct tty_struct *tty)
 {
 	struct pts_fs_info *fsi;
 
@@ -705,7 +682,6 @@ static const struct tty_operations ptm_unix98_ops = {
 	.unthrottle = pty_unthrottle,
 	.ioctl = pty_unix98_ioctl,
 	.resize = pty_resize,
-	.shutdown = pty_unix98_shutdown,
 	.cleanup = pty_cleanup
 };
 
@@ -723,7 +699,6 @@ static const struct tty_operations pty_unix98_ops = {
 	.set_termios = pty_set_termios,
 	.start = pty_start,
 	.stop = pty_stop,
-	.shutdown = pty_unix98_shutdown,
 	.cleanup = pty_cleanup,
 };
 
@@ -803,7 +778,7 @@ static int ptmx_open(struct inode *inode, struct file *filp)
 	if (retval)
 		goto err_release;
 
-	tty_debug_hangup(tty, "(tty count=%d)\n", tty->count);
+	tty_debug_hangup(tty, "opening (count=%d)\n", tty->count);
 
 	tty_unlock(tty);
 	return 0;

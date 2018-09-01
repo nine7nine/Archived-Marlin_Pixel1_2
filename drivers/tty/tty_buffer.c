@@ -364,6 +364,32 @@ int tty_insert_flip_string_flags(struct tty_port *port,
 EXPORT_SYMBOL(tty_insert_flip_string_flags);
 
 /**
+ *	__tty_insert_flip_char   -	Add one character to the tty buffer
+ *	@port: tty port
+ *	@ch: character
+ *	@flag: flag byte
+ *
+ *	Queue a single byte to the tty buffering, with an optional flag.
+ *	This is the slow path of tty_insert_flip_char.
+ */
+int __tty_insert_flip_char(struct tty_port *port, unsigned char ch, char flag)
+{
+	struct tty_buffer *tb;
+	int flags = (flag == TTY_NORMAL) ? TTYB_NORMAL : 0;
+
+	if (!__tty_buffer_request_room(port, 1, flags))
+		return 0;
+
+	tb = port->buf.tail;
+	if (~tb->flags & TTYB_NORMAL)
+		*flag_buf_ptr(tb, tb->used) = flag;
+	*char_buf_ptr(tb, tb->used++) = ch;
+
+	return 1;
+}
+EXPORT_SYMBOL(__tty_insert_flip_char);
+
+/**
  *	tty_schedule_flip	-	push characters to ldisc
  *	@port: tty port to push from
  *
@@ -412,25 +438,42 @@ int tty_prepare_flip_string(struct tty_port *port, unsigned char **chars,
 }
 EXPORT_SYMBOL_GPL(tty_prepare_flip_string);
 
+/**
+ *	tty_ldisc_receive_buf		-	forward data to line discipline
+ *	@ld:	line discipline to process input
+ *	@p:	char buffer
+ *	@f:	TTY_* flags buffer
+ *	@count:	number of bytes to process
+ *
+ *	Callers other than flush_to_ldisc() need to exclude the kworker
+ *	from concurrent use of the line discipline, see paste_selection().
+ *
+ *	Returns the number of bytes processed
+ */
+int tty_ldisc_receive_buf(struct tty_ldisc *ld, unsigned char *p,
+			  char *f, int count)
+{
+	if (ld->ops->receive_buf2)
+		count = ld->ops->receive_buf2(ld->tty, p, f, count);
+	else {
+		count = min_t(int, count, ld->tty->receive_room);
+		if (count && ld->ops->receive_buf)
+			ld->ops->receive_buf(ld->tty, p, f, count);
+	}
+	return count;
+}
+EXPORT_SYMBOL_GPL(tty_ldisc_receive_buf);
 
 static int
-receive_buf(struct tty_struct *tty, struct tty_buffer *head, int count)
+receive_buf(struct tty_ldisc *ld, struct tty_buffer *head, int count)
 {
-	struct tty_ldisc *disc = tty->ldisc;
 	unsigned char *p = char_buf_ptr(head, head->read);
 	char	      *f = NULL;
 
 	if (~head->flags & TTYB_NORMAL)
 		f = flag_buf_ptr(head, head->read);
 
-	if (disc->ops->receive_buf2)
-		count = disc->ops->receive_buf2(tty, p, f, count);
-	else {
-		count = min_t(int, count, tty->receive_room);
-		if (count && disc->ops->receive_buf)
-			disc->ops->receive_buf(tty, p, f, count);
-	}
-	return count;
+	return tty_ldisc_receive_buf(ld, p, f, count);
 }
 
 /**
@@ -489,7 +532,7 @@ static void flush_to_ldisc(struct kthread_work *work)
 			continue;
 		}
 
-		count = receive_buf(tty, head, count);
+		count = receive_buf(disc, head, count);
 		if (!count)
 			break;
 		head->read += count;

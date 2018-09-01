@@ -108,6 +108,12 @@ static int of_platform_serial_setup(struct platform_device *ofdev,
 		case 1:
 			port->iotype = UPIO_MEM;
 			break;
+		case 2:
+			port->iotype = UPIO_MEM16;
+			break;
+		case 2:
+			port->iotype = UPIO_MEM16;
+			break;
 		case 4:
 			port->iotype = UPIO_MEM32;
 			break;

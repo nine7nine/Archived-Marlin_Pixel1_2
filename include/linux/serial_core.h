@@ -151,6 +151,7 @@ struct uart_port {
 #define UPIO_AU			(SERIAL_IO_AU)		/* Au1x00 and RT288x type IO */
 #define UPIO_TSI		(SERIAL_IO_TSI)		/* Tsi108/109 type IO */
 #define UPIO_MEM32BE		(SERIAL_IO_MEM32BE)	/* 32b big endian */
+#define UPIO_MEM16		(SERIAL_IO_MEM16)	/* 16b little endian */
 
 	unsigned int		read_status_mask;	/* driver specific */
 	unsigned int		ignore_status_mask;	/* driver specific */
@@ -281,6 +282,8 @@ struct uart_state {
 	enum uart_pm_state	pm_state;
 	struct circ_buf		xmit;
 
+	atomic_t		refcount;
+	wait_queue_head_t	remove_wait;
 	struct uart_port	*uart_port;
 };
 
