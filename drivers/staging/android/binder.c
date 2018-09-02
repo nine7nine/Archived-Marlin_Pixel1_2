@@ -84,7 +84,8 @@
 #include "binder_filter.h"
 extern int filter_binder_message(unsigned long, signed long, int, kuid_t, void*, size_t);
 
-static LLIST_HEAD(binder_deferred_list);
+static HLIST_HEAD(binder_deferred_list);
+static DEFINE_SPINLOCK(binder_deferred_lock);
 
 static HLIST_HEAD(binder_devices);
 static HLIST_HEAD(binder_procs);
@@ -126,57 +127,6 @@ BINDER_DEBUG_ENTRY(proc);
 #define FORBIDDEN_MMAP_FLAGS                (VM_WRITE)
 
 #define BINDER_SMALL_BUF_SIZE (PAGE_SIZE * 64)
-
-/*
- * llist extension to allow lockless addition of an entry only if it's
- * not on any other list
- */
-#define LLIST_NODE_UNLISTED	((void *)(-1L))
-#define LLIST_NODE_INIT(name)	{ LLIST_NODE_UNLISTED }
-#define LLIST_NODE(name)	struct llist_node name = LLIST_NODE_INIT(name)
-
-static inline void INIT_LLIST_NODE(struct llist_node *node)
-{
-	WRITE_ONCE(node->next, LLIST_NODE_UNLISTED);
-}
-
-/**
- * llist_del_first_exclusive - delete the first entry of lock-less list
- * 			       and make sure it's marked as UNLISTED
- * @head:	the head for your lock-less list
- *
- * If list is empty, return NULL, otherwise, return the first entry
- * deleted, this is the newest added one.
- *
- */
-static inline struct llist_node *llist_del_first_exclusive(
-				struct llist_head *head)
-{
-	struct llist_node *node = llist_del_first(head);
-
-	if (READ_ONCE(node))
-		smp_store_release(&node->next, LLIST_NODE_UNLISTED);
-	return node;
-}
-
-/**
- * llist_add_exclusive - add a node only if it's not on any list
-			 (i. e. marked as UNLISTED)
- * @node:	the node to be added
- * @head:	the head for your lock-less list
- *
- * Return true if the node was added, or false otherwise.
- */
-static inline bool llist_add_exclusive(struct llist_node *node,
-					struct llist_head *head)
-{
-	if (cmpxchg(&node->next, LLIST_NODE_UNLISTED, NULL) !=
-				LLIST_NODE_UNLISTED)
-		return false;
-
-	llist_add(node, head);
-	return true;
-}
 
 enum {
 	BINDER_DEBUG_USER_ERROR             = 1U << 0,
@@ -607,8 +557,8 @@ struct binder_proc {
 	struct task_struct *tsk;
 	struct files_struct *files;
 	struct rt_mutex files_lock;
-	struct llist_node deferred_work_node;
-	atomic_t deferred_work;
+	struct hlist_node deferred_work_node;
+	int deferred_work;
 	bool is_dead;
 
 	struct list_head todo;
@@ -5055,8 +5005,6 @@ static int binder_open(struct inode *nodp, struct file *filp)
 	INIT_LIST_HEAD(&proc->waiting_threads);
 	filp->private_data = proc;
 
-	INIT_LLIST_NODE(&proc->deferred_work_node);
-
 	rt_mutex_lock(&binder_procs_lock);
 	hlist_add_head(&proc->proc_node, &binder_procs);
 	rt_mutex_unlock(&binder_procs_lock);
@@ -5277,20 +5225,22 @@ static void binder_deferred_func(struct work_struct *work)
 {
 	struct binder_proc *proc;
 	struct files_struct *files;
-	struct llist_node *n;
 
 	int defer;
 
 	do {
-		n = llist_del_first_exclusive(&binder_deferred_list);
-		if (n) {
-			proc = llist_entry(n, struct binder_proc,
-				deferred_work_node);
-			defer = atomic_xchg(&proc->deferred_work, 0);
+		spin_lock(&binder_deferred_lock);
+		if (!hlist_empty(&binder_deferred_list)) {
+			proc = hlist_entry(binder_deferred_list.first,
+					struct binder_proc, deferred_work_node);
+			hlist_del_init(&proc->deferred_work_node);
+			defer = proc->deferred_work;
+			proc->deferred_work = 0;
 		} else {
 			proc = NULL;
 			defer = 0;
 		}
+		spin_unlock(&binder_deferred_lock);
 
 		files = NULL;
 		if (defer & BINDER_DEFERRED_PUT_FILES) {
@@ -5316,10 +5266,14 @@ static DECLARE_WORK(binder_deferred_work, binder_deferred_func);
 static void
 binder_defer_work(struct binder_proc *proc, enum binder_deferred_state defer)
 {
-	atomic_fetch_or(defer, &proc->deferred_work);
-	if (llist_add_exclusive(&proc->deferred_work_node,
-				&binder_deferred_list))
+	spin_lock(&binder_deferred_lock);
+	proc->deferred_work |= defer;
+	if (hlist_unhashed(&proc->deferred_work_node)) {
+		hlist_add_head(&proc->deferred_work_node,
+				&binder_deferred_list);
 		schedule_work(&binder_deferred_work);
+	}
+	spin_unlock(&binder_deferred_lock);
 }
 
 static void print_binder_transaction_ilocked(struct seq_file *m,
