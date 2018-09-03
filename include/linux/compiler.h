@@ -294,36 +294,6 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 	__u.__val;					\
 })
 
-/**
- * smp_cond_load_acquire() - (Spin) wait for cond with ACQUIRE ordering
- * @ptr: pointer to the variable to wait on
- * @cond: boolean expression to wait for
- *
- * Equivalent to using smp_load_acquire() on the condition variable but employs
- * the control dependency of the wait to reduce the barrier on many platforms.
- *
- * Due to C lacking lambda expressions we load the value of *ptr into a
- * pre-named variable @VAL to be used in @cond.
- *
- * The control dependency provides a LOAD->STORE order, the additional RMB
- * provides LOAD->LOAD order, together they provide LOAD->{LOAD,STORE} order,
- * aka. ACQUIRE.
- */
-#ifndef smp_cond_load_acquire
-#define smp_cond_load_acquire(ptr, cond_expr) ({		\
-	typeof(ptr) __PTR = (ptr);				\
-	typeof(*ptr) VAL;					\
-	for (;;) {						\
-		VAL = READ_ONCE(*__PTR);			\
-		if (cond_expr)					\
-			break;					\
-		cpu_relax();					\
-	}							\
-	smp_rmb(); /* ctrl + rmb := acquire */			\
-	VAL;							\
-})
-#endif
-
 #endif /* __KERNEL__ */
 
 #endif /* __ASSEMBLY__ */
@@ -461,7 +431,11 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 
 /* Is this type a native word size -- useful for atomic operations */
 #ifndef __native_word
-# define __native_word(t) (sizeof(t) == sizeof(int) || sizeof(t) == sizeof(long))
+# define __native_word(t) (sizeof(t) == sizeof(char) || sizeof(t) == sizeof(short) || sizeof(t) == sizeof(int) || sizeof(t) == sizeof(long))
+#endif
+
+#ifndef __optimize
+# define __optimize(level)
 #endif
 
 /* Compile time object size, -1 for unknown */

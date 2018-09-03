@@ -30,6 +30,53 @@
 #define  atomic_set_release(v, i)	smp_store_release(&(v)->counter, (i))
 #endif
 
+/**
+ * cmpwait - compare and wait for a variable to change
+ * @ptr: pointer to the variable to wait on
+ * @val: the value it should change from
+ *
+ * A simple constuct that waits for a variable to change from a known
+ * value; some architectures can do this in hardware.
+ */
+#ifndef cmpwait
+#define cmpwait(ptr, val) do {					\
+	typeof (ptr) __ptr = (ptr);				\
+	typeof (val) __val = (val);				\
+	while (READ_ONCE(*__ptr) == __val)			\
+		cpu_relax();					\
+} while (0)
+#endif
+
+/**
+ * smp_cond_load_acquire() - (Spin) wait for cond with ACQUIRE ordering
+ * @ptr: pointer to the variable to wait on
+ * @cond: boolean expression to wait for
+ *
+ * Equivalent to using smp_load_acquire() on the condition variable but employs
+ * the control dependency of the wait to reduce the barrier on many platforms.
+ *
+ * Due to C lacking lambda expressions we load the value of *ptr into a
+ * pre-named variable @VAL to be used in @cond.
+ *
+ * The control dependency provides a LOAD->STORE order, the additional RMB
+ * provides LOAD->LOAD order, together they provide LOAD->{LOAD,STORE} order,
+ * aka. ACQUIRE.
+ */
+#ifndef smp_cond_load_acquire
+#define smp_cond_load_acquire(ptr, cond_expr) ({		\
+	typeof(ptr) __PTR = (ptr);				\
+	typeof(*ptr) VAL;					\
+	for (;;) {						\
+		VAL = READ_ONCE(*__PTR);			\
+		if (cond_expr)					\
+			break;					\
+		cmpwait(__PTR, VAL);				\
+	}							\
+	smp_rmb(); /* ctrl + rmb := acquire */			\
+	VAL;							\
+})
+#endif
+
 /*
  * The idea here is to build acquire/release variants by adding explicit
  * barriers on top of the relaxed variant. In the case where the relaxed
