@@ -16,6 +16,15 @@
 #include <linux/devfreq_boost.h>
 #include <linux/fb.h>
 #include <linux/input.h>
+#include <linux/moduleparam.h>
+
+/* Module Parameters */
+static int devfreq_boost_ms = 64;
+module_param(devfreq_boost_ms, uint, 0644);
+static int devfreq_cpubw_boost_freq = 4173;
+module_param(devfreq_cpubw_boost_freq, uint, 0644);
+static int devfreq_wake_boost_ms = 1500;
+module_param(devfreq_wake_boost_ms, uint, 0644);
 
 struct df_boost_drv {
 	struct boost_dev devices[DEVFREQ_MAX];
@@ -200,7 +209,7 @@ static void devfreq_input_boost(struct work_struct *work)
 	}
 
 	queue_delayed_work(b->wq, &b->input_unboost,
-		msecs_to_jiffies(CONFIG_DEVFREQ_INPUT_BOOST_DURATION_MS));
+		msecs_to_jiffies(devfreq_boost_ms));
 }
 
 static void devfreq_input_unboost(struct work_struct *work)
@@ -268,7 +277,7 @@ static int fb_notifier_cb(struct notifier_block *nb,
 
 		for (i = 0; i < DEVFREQ_MAX; i++)
 			__devfreq_boost_kick_max(d->devices + i,
-				CONFIG_DEVFREQ_WAKE_BOOST_DURATION_MS);
+				devfreq_wake_boost_ms);
 	} else {
 		devfreq_unboost_all(d);
 	}
@@ -387,7 +396,7 @@ static int __init devfreq_boost_init(void)
 	}
 
 	d->devices[DEVFREQ_MSM_CPUBW].boost_freq =
-		CONFIG_DEVFREQ_MSM_CPUBW_BOOST_FREQ;
+		devfreq_cpubw_boost_freq;
 
 	devfreq_boost_input_handler.private = d;
 	ret = input_register_handler(&devfreq_boost_input_handler);
