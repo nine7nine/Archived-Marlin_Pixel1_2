@@ -2474,9 +2474,9 @@ int adreno_dispatcher_idle(struct adreno_device *adreno_dev)
 	 * Ensure that this function is not called when dispatcher
 	 * mutex is held and device is started
 	 */
-	if (mutex_is_locked(&dispatcher->mutex) &&
-		dispatcher->mutex.owner == current)
-		BUG_ON(1);
+//	if (mutex_is_locked(&dispatcher->mutex) &&
+//		dispatcher->mutex.owner == current)
+//		BUG_ON(1);
 
 	adreno_get_gpu_halt(adreno_dev);
 
