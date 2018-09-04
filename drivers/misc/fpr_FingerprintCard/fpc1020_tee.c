@@ -61,7 +61,7 @@ struct fpc1020_data {
 	int irq_gpio;
 	int rst_gpio;
 	int irq_num;
-	struct mutex lock;
+	struct rt_mutex lock;
 	bool prepared;
 	bool wakeup_enabled;
 
@@ -287,7 +287,7 @@ static int fpc1020_probe(struct platform_device *pdev)
 	fpc1020->wakeup_enabled = false;
 
 	irqf = IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_PERF_CRITICAL | IRQF_TH_SCHED_FIFO_HI;
-	mutex_init(&fpc1020->lock);
+	rt_mutex_init(&fpc1020->lock);
 	rc = devm_request_threaded_irq(dev, gpio_to_irq(fpc1020->irq_gpio),
 			NULL, fpc1020_irq_handler, irqf,
 			dev_name(dev), fpc1020);
