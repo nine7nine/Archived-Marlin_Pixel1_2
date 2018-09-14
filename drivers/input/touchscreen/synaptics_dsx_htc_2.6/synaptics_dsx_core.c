@@ -879,7 +879,7 @@ struct synaptics_rmi4_exp_fhandler {
 struct synaptics_rmi4_exp_fn_data {
 	bool initialized;
 	bool queue_work;
-	struct mutex mutex;
+	struct rt_mutex mutex;
 	struct list_head list;
 	struct delayed_work work;
 	struct workqueue_struct *workqueue;
@@ -1333,7 +1333,7 @@ static ssize_t int_status_store(struct device *dev,
 	else
 		return -EINVAL;
 
-	mutex_lock(&(rmi4_data->rmi4_irq_enable_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_irq_enable_mutex));
 
 	if (value) {
 		ret = request_threaded_irq(rmi4_data->irq, NULL,
@@ -1350,7 +1350,7 @@ static ssize_t int_status_store(struct device *dev,
 		pr_info("%s: interrupt disable: %x\n", __func__, rmi4_data->irq_enabled);
 	}
 
-	mutex_unlock(&(rmi4_data->rmi4_irq_enable_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_irq_enable_mutex));
 
 	return count;
 }
@@ -1607,7 +1607,7 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	if (retval < 0)
 		return 0;
 
-	mutex_lock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_report_mutex));
 
 	for (finger = 0; finger < fingers_supported; finger++) {
 		reg_index = finger / 4;
@@ -1708,7 +1708,7 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	input_sync(rmi4_data->input_dev);
 
 exit:
-	mutex_unlock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_report_mutex));
 
 	return touch_count;
 }
@@ -1844,7 +1844,7 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	}
 #endif
 
-	mutex_lock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_report_mutex));
 
 	for (finger = 0; finger < fingers_to_process; finger++) {
 		finger_data = data + finger;
@@ -1983,9 +1983,9 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 				break;
 			/* Stylus has priority over fingers */
 			if (finger_presence) {
-				mutex_unlock(&(rmi4_data->rmi4_report_mutex));
+				rt_mutex_unlock(&(rmi4_data->rmi4_report_mutex));
 				synaptics_rmi4_free_fingers(rmi4_data);
-				mutex_lock(&(rmi4_data->rmi4_report_mutex));
+				rt_mutex_lock(&(rmi4_data->rmi4_report_mutex));
 				finger_presence = 0;
 			}
 			if (stylus_presence) {/* Allow one stylus at a timee */
@@ -2060,7 +2060,7 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	synaptics_rmi4_get_noise_state(rmi4_data);
 #endif
 
-	mutex_unlock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_report_mutex));
 
 	return touch_count;
 }
@@ -2106,7 +2106,7 @@ static void synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 
 	data = f1a->button_data_buffer;
 
-	mutex_lock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_report_mutex));
 
 	for (button = 0; button < f1a->valid_button_count; button++) {
 		index = button / 8;
@@ -2164,7 +2164,7 @@ static void synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 	if (touch_count)
 		input_sync(rmi4_data->input_dev);
 
-	mutex_unlock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_report_mutex));
 
 	return;
 }
@@ -2343,7 +2343,7 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data,
 		}
 	}
 
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry(exp_fhandler, &exp_data.list, link) {
 			if (!exp_fhandler->insert &&
@@ -2352,7 +2352,7 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data,
 				exp_fhandler->exp_fn->attn(rmi4_data, intr[0]);
 		}
 	}
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	return;
 }
@@ -2419,7 +2419,7 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 			rmi4_data->hw_if->board_data;
 #endif
 
-	mutex_lock(&(rmi4_data->rmi4_irq_enable_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_irq_enable_mutex));
 
 	if (attn_only) {
 		retval = synaptics_rmi4_int_enable(rmi4_data, enable);
@@ -2481,7 +2481,7 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 	}
 
 exit:
-	mutex_unlock(&(rmi4_data->rmi4_irq_enable_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_irq_enable_mutex));
 
 	return retval;
 }
@@ -4840,7 +4840,7 @@ static int synaptics_rmi4_free_fingers(struct synaptics_rmi4_data *rmi4_data)
 {
 	unsigned char ii;
 
-	mutex_lock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_report_mutex));
 
 #ifdef TYPE_B_PROTOCOL
 	for (ii = 0; ii < rmi4_data->num_of_fingers; ii++) {
@@ -4872,7 +4872,7 @@ static int synaptics_rmi4_free_fingers(struct synaptics_rmi4_data *rmi4_data)
 		input_sync(rmi4_data->stylus_dev);
 	}
 
-	mutex_unlock(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_report_mutex));
 
 	rmi4_data->fingers_on_2d = false;
 
@@ -4927,9 +4927,9 @@ static void synaptics_rmi4_rebuild_work(struct work_struct *work)
 			container_of(delayed_work, struct synaptics_rmi4_data,
 			rb_work);
 
-	mutex_lock(&(rmi4_data->rmi4_reset_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_reset_mutex));
 
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 
 	synaptics_rmi4_irq_enable(rmi4_data, false, false);
 
@@ -4991,9 +4991,9 @@ static void synaptics_rmi4_rebuild_work(struct work_struct *work)
 exit:
 	synaptics_rmi4_irq_enable(rmi4_data, true, false);
 
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
-	mutex_unlock(&(rmi4_data->rmi4_reset_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_reset_mutex));
 
 	return;
 }
@@ -5051,7 +5051,7 @@ static int synaptics_rmi4_reset_device(struct synaptics_rmi4_data *rmi4_data,
 		return 0;
 	}
 
-	mutex_lock(&(rmi4_data->rmi4_reset_mutex));
+	rt_mutex_lock(&(rmi4_data->rmi4_reset_mutex));
 
 	synaptics_rmi4_irq_enable(rmi4_data, false, false);
 
@@ -5077,20 +5077,20 @@ static int synaptics_rmi4_reset_device(struct synaptics_rmi4_data *rmi4_data,
 
 	synaptics_rmi4_set_params(rmi4_data);
 
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry(exp_fhandler, &exp_data.list, link)
 			if (exp_fhandler->exp_fn->reset != NULL)
 				exp_fhandler->exp_fn->reset(rmi4_data);
 	}
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	retval = 0;
 
 exit:
 	synaptics_rmi4_irq_enable(rmi4_data, true, false);
 
-	mutex_unlock(&(rmi4_data->rmi4_reset_mutex));
+	rt_mutex_unlock(&(rmi4_data->rmi4_reset_mutex));
 
 	return retval;
 }
@@ -5117,7 +5117,7 @@ static void synaptics_rmi4_reset_work(struct work_struct *work)
 		}
 	}
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	retval = synaptics_rmi4_reset_device(rmi4_data, false);
 	if (retval < 0) {
@@ -5126,7 +5126,7 @@ static void synaptics_rmi4_reset_work(struct work_struct *work)
 				__func__);
 	}
 
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	return;
 }
@@ -5178,9 +5178,9 @@ static void synaptics_rmi4_exp_fn_work(struct work_struct *work)
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler_temp;
 	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
-	mutex_lock(&rmi4_data->rmi4_reset_mutex);
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_reset_mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry_safe(exp_fhandler,
 				exp_fhandler_temp,
@@ -5198,9 +5198,9 @@ static void synaptics_rmi4_exp_fn_work(struct work_struct *work)
 			}
 		}
 	}
-	mutex_unlock(&exp_data.mutex);
-	mutex_unlock(&rmi4_data->rmi4_reset_mutex);
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_reset_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	return;
 }
@@ -5211,12 +5211,12 @@ void synaptics_rmi4_new_function(struct synaptics_rmi4_exp_fn *exp_fn,
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 
 	if (!exp_data.initialized) {
-		mutex_init(&exp_data.mutex);
+		rt_mutex_init(&exp_data.mutex);
 		INIT_LIST_HEAD(&exp_data.list);
 		exp_data.initialized = true;
 	}
 
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (insert) {
 		exp_fhandler = kzalloc(sizeof(*exp_fhandler), GFP_KERNEL);
 		if (!exp_fhandler) {
@@ -5239,7 +5239,7 @@ void synaptics_rmi4_new_function(struct synaptics_rmi4_exp_fn *exp_fn,
 	}
 
 exit:
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	if (exp_data.queue_work) {
 		queue_delayed_work(exp_data.workqueue,
@@ -5313,11 +5313,11 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	rmi4_data->sleep_enable = synaptics_rmi4_sleep_enable;
 	rmi4_data->report_touch = synaptics_rmi4_report_touch;
 
-	mutex_init(&(rmi4_data->rmi4_reset_mutex));
-	mutex_init(&(rmi4_data->rmi4_report_mutex));
-	mutex_init(&(rmi4_data->rmi4_io_ctrl_mutex));
-	mutex_init(&(rmi4_data->rmi4_exp_init_mutex));
-	mutex_init(&(rmi4_data->rmi4_irq_enable_mutex));
+	rt_mutex_init(&(rmi4_data->rmi4_reset_mutex));
+	rt_mutex_init(&(rmi4_data->rmi4_report_mutex));
+	rt_mutex_init(&(rmi4_data->rmi4_io_ctrl_mutex));
+	rt_mutex_init(&(rmi4_data->rmi4_exp_init_mutex));
+	rt_mutex_init(&(rmi4_data->rmi4_irq_enable_mutex));
 
 	platform_set_drvdata(pdev, rmi4_data);
 
@@ -5401,7 +5401,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 #endif
 
 	if (!exp_data.initialized) {
-		mutex_init(&exp_data.mutex);
+		rt_mutex_init(&exp_data.mutex);
 		INIT_LIST_HEAD(&exp_data.list);
 		exp_data.initialized = true;
 	}
@@ -5849,13 +5849,13 @@ static void synaptics_rmi4_early_suspend(struct early_suspend *h)
 	synaptics_rmi4_free_fingers(rmi4_data);
 
 exit:
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry(exp_fhandler, &exp_data.list, link)
 			if (exp_fhandler->exp_fn->early_suspend != NULL)
 				exp_fhandler->exp_fn->early_suspend(rmi4_data);
 	}
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	rmi4_data->suspend = true;
 
@@ -5899,13 +5899,13 @@ exit:
 		}
 	}
 #endif
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry(exp_fhandler, &exp_data.list, link)
 			if (exp_fhandler->exp_fn->late_resume != NULL)
 				exp_fhandler->exp_fn->late_resume(rmi4_data);
 	}
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	rmi4_data->suspend = false;
 
@@ -5941,13 +5941,13 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	}
 
 exit:
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry(exp_fhandler, &exp_data.list, link)
 			if (exp_fhandler->exp_fn->suspend != NULL)
 				exp_fhandler->exp_fn->suspend(rmi4_data);
 	}
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	gpio_set_value(rmi4_data->hw_if->board_data->switch_gpio, 1);
 	dev_dbg(rmi4_data->pdev->dev.parent,
@@ -6011,13 +6011,13 @@ exit:
 				__func__);
 	}
 #endif
-	mutex_lock(&exp_data.mutex);
+	rt_mutex_lock(&exp_data.mutex);
 	if (!list_empty(&exp_data.list)) {
 		list_for_each_entry(exp_fhandler, &exp_data.list, link)
 			if (exp_fhandler->exp_fn->resume != NULL)
 				exp_fhandler->exp_fn->resume(rmi4_data);
 	}
-	mutex_unlock(&exp_data.mutex);
+	rt_mutex_unlock(&exp_data.mutex);
 
 	rmi4_data->suspend = false;
 

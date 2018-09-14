@@ -465,7 +465,7 @@ static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
 	struct i2c_adapter *adap = i2c->adapter;
 	struct i2c_msg msg[rd_msgs + 1];
 
-	mutex_lock(&rmi4_data->rmi4_io_ctrl_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_io_ctrl_mutex);
 
 	retval = synaptics_rmi4_i2c_set_page(rmi4_data, addr);
 	if (retval != PAGE_SELECT_LEN) {
@@ -544,7 +544,7 @@ static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
 	retval = length;
 
 exit:
-	mutex_unlock(&rmi4_data->rmi4_io_ctrl_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_io_ctrl_mutex);
 
 	return retval;
 }
@@ -561,7 +561,7 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
 	if (retval < 0)
 		return retval;
 
-	mutex_lock(&rmi4_data->rmi4_io_ctrl_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_io_ctrl_mutex);
 
 	retval = synaptics_rmi4_i2c_set_page(rmi4_data, addr);
 	if (retval != PAGE_SELECT_LEN) {
@@ -607,7 +607,7 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
 	}
 
 exit:
-	mutex_unlock(&rmi4_data->rmi4_io_ctrl_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_io_ctrl_mutex);
 
 	return retval;
 }

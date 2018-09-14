@@ -775,7 +775,7 @@ static struct synaptics_rmi4_fwu_handle *fwu;
 DECLARE_COMPLETION(fwu_remove_complete);
 
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE_SYSFS_HTC_v26
-DEFINE_MUTEX(fwu_sysfs_mutex);
+DEFINE_RT_MUTEX(fwu_sysfs_mutex);
 #endif
 
 /* Check offset + size <= bound.  true if in bounds, false otherwise. */
@@ -4072,7 +4072,7 @@ static int fwu_do_read_config(void)
 		return -EINVAL;
 	}
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	if (fwu->bl_version == BL_V5 || fwu->bl_version == BL_V6) {
 		config_area = fwu->config_area;
@@ -4094,7 +4094,7 @@ exit:
 	if (fwu->bl_version == BL_V5 || fwu->bl_version == BL_V6)
 		rmi4_data->reset_device(rmi4_data, false);
 
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	return retval;
 }
@@ -4268,7 +4268,7 @@ static int fwu_start_write_guest_code(void)
 
 	rmi4_data->stay_awake = true;
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	pr_notice("%s: Start of write guest code process\n", __func__);
 
@@ -4295,7 +4295,7 @@ exit:
 
 	pr_notice("%s: End of write guest code process\n", __func__);
 
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	rmi4_data->stay_awake = false;
 
@@ -4380,7 +4380,7 @@ static int fwu_start_write_config(void)
 
 	rmi4_data->stay_awake = true;
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	pr_notice("%s: Start of write config process\n", __func__);
 
@@ -4435,7 +4435,7 @@ exit:
 
 	pr_notice("%s: End of write config process\n", __func__);
 
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	rmi4_data->stay_awake = false;
 
@@ -4459,7 +4459,7 @@ static int fwu_start_reflash(void)
 
 	rmi4_data->stay_awake = true;
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	pr_notice("%s: Start of reflash process\n", __func__);
 
@@ -4678,7 +4678,7 @@ exit:
 
 	pr_notice("%s: End of reflash process\n", __func__);
 
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	rmi4_data->stay_awake = false;
 
@@ -4937,7 +4937,7 @@ static int fwu_start_recovery(void)
 
 	rmi4_data->stay_awake = true;
 
-	mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_lock(&rmi4_data->rmi4_exp_init_mutex);
 
 	pr_notice("%s: Start of recovery process\n", __func__);
 
@@ -4986,7 +4986,7 @@ static int fwu_start_recovery(void)
 exit:
 	pr_notice("%s: End of recovery process\n", __func__);
 
-	mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
+	rt_mutex_unlock(&rmi4_data->rmi4_exp_init_mutex);
 
 	rmi4_data->stay_awake = false;
 
@@ -5249,7 +5249,7 @@ static void fwu_startup_fw_update_work(struct work_struct *work)
 
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE_SYSFS_HTC_v26
 	/* Prevent sysfs operations during initial update. */
-	mutex_lock(&fwu_sysfs_mutex);
+	rt_mutex_lock(&fwu_sysfs_mutex);
 #endif
 
 #ifdef HTC_FEATURE
@@ -5267,7 +5267,7 @@ static void fwu_startup_fw_update_work(struct work_struct *work)
 	synaptics_fw_updater(NULL);
 #endif
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE_SYSFS_HTC_v26
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 #endif
 	return;
 }
@@ -5281,7 +5281,7 @@ static ssize_t fwu_sysfs_show_image(struct file *data_file,
 	int retval;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	if (count < fwu->config_size) {
@@ -5304,7 +5304,7 @@ static ssize_t fwu_sysfs_show_image(struct file *data_file,
 	retval = fwu->config_size;
 
 show_image_exit:
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 	return retval;
 }
 
@@ -5315,7 +5315,7 @@ static ssize_t fwu_sysfs_store_image(struct file *data_file,
 	int retval;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	retval = secure_memcpy(&fwu->ext_data_source[fwu->data_pos],
@@ -5331,7 +5331,7 @@ static ssize_t fwu_sysfs_store_image(struct file *data_file,
 	retval = count;
 
 store_image_exit:
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 	return retval;
 }
 
@@ -5342,7 +5342,7 @@ static ssize_t fwu_sysfs_do_recovery_store(struct device *dev,
 	unsigned int input;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	if (sscanf(buf, "%u", &input) != 1) {
@@ -5381,7 +5381,7 @@ free_data_source_recovery_exit:
 	fwu->image = NULL;
 
 do_recovery_store_exit:
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 	return retval;
 }
 
@@ -5392,7 +5392,7 @@ static ssize_t fwu_sysfs_do_reflash_store(struct device *dev,
 	unsigned int input;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	if (sscanf(buf, "%u", &input) != 1) {
@@ -5446,7 +5446,7 @@ reflash_store_free_exit:
 	fwu->do_lockdown = DO_LOCKDOWN;
 
 reflash_store_exit:
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 	return retval;
 }
 
@@ -5457,7 +5457,7 @@ static ssize_t fwu_sysfs_write_config_store(struct device *dev,
 	unsigned int input;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	if (sscanf(buf, "%u", &input) != 1) {
@@ -5500,7 +5500,7 @@ write_config_store_free_exit:
 	fwu->image = NULL;
 
 write_config_store_exit:
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 	return retval;
 }
 
@@ -5524,10 +5524,10 @@ static ssize_t fwu_sysfs_read_config_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 	retval = fwu_do_read_config();
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -5549,10 +5549,10 @@ static ssize_t fwu_sysfs_config_area_store(struct device *dev,
 	if (retval)
 		return retval;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 	fwu->config_area = config_area;
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 
 	return count;
 }
@@ -5563,11 +5563,11 @@ static ssize_t fwu_sysfs_image_name_store(struct device *dev,
 	int retval;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 	retval = secure_memcpy(fwu->image_name, MAX_IMAGE_NAME_LEN,
 			buf, count, count);
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -5590,7 +5590,7 @@ static ssize_t fwu_sysfs_image_size_store(struct device *dev,
 	if (retval)
 		return retval;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	fwu->image_size = size;
@@ -5600,7 +5600,7 @@ static ssize_t fwu_sysfs_image_size_store(struct device *dev,
 		kfree(fwu->ext_data_source);
 	}
 	fwu->ext_data_source = kzalloc(fwu->image_size, GFP_KERNEL);
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 
 	if (!fwu->ext_data_source) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -5661,7 +5661,7 @@ static ssize_t fwu_sysfs_write_guest_code_store(struct device *dev,
 	unsigned int input;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
-	if (!mutex_trylock(&fwu_sysfs_mutex))
+	if (!rt_mutex_trylock(&fwu_sysfs_mutex))
 		return -EBUSY;
 
 	if (sscanf(buf, "%u", &input) != 1) {
@@ -5704,7 +5704,7 @@ write_guest_code_store_free_exit:
 	fwu->ext_data_source = NULL;
 	fwu->image = NULL;
 write_guest_code_store_exit:
-	mutex_unlock(&fwu_sysfs_mutex);
+	rt_mutex_unlock(&fwu_sysfs_mutex);
 	return retval;
 }
 #endif

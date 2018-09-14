@@ -411,11 +411,11 @@ struct synaptics_rmi4_data {
 	struct kobject *board_prop_dir;
 	struct regulator *pwr_reg;
 	struct regulator *bus_reg;
-	struct mutex rmi4_reset_mutex;
-	struct mutex rmi4_report_mutex;
-	struct mutex rmi4_io_ctrl_mutex;
-	struct mutex rmi4_exp_init_mutex;
-	struct mutex rmi4_irq_enable_mutex;
+	struct rt_mutex rmi4_reset_mutex;
+	struct rt_mutex rmi4_report_mutex;
+	struct rt_mutex rmi4_io_ctrl_mutex;
+	struct rt_mutex rmi4_exp_init_mutex;
+	struct rt_mutex rmi4_irq_enable_mutex;
 	struct delayed_work rb_work;
 	struct workqueue_struct *rb_workqueue;
 #ifdef CONFIG_FB
