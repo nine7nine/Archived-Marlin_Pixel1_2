@@ -352,7 +352,7 @@ static int __ref take_cpu_down(void *_param)
 
 	cpu_notify(CPU_DYING | param->mod, param->hcpu);
 	/* Park the stopper thread */
-	kthread_park(current);
+	stop_machine_park((long)param->hcpu);
 	return 0;
 }
 
@@ -459,6 +459,7 @@ static int smpboot_thread_call(struct notifier_block *nfb,
 	switch (action & ~CPU_TASKS_FROZEN) {
 
 	case CPU_ONLINE:
+		stop_machine_unpark(cpu);
 		smpboot_unpark_threads(cpu);
 		break;
 
