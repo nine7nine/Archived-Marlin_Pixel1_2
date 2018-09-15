@@ -286,4 +286,14 @@ void idle_notifier_register(struct notifier_block *n);
 void idle_notifier_unregister(struct notifier_block *n);
 void idle_notifier_call_chain(unsigned long val);
 
+DECLARE_PER_CPU(bool, cpu_dead_idle);
+
+int cpu_report_state(int cpu);
+int cpu_check_up_prepare(int cpu);
+void cpu_set_state_online(int cpu);
+#ifdef CONFIG_HOTPLUG_CPU
+bool cpu_wait_death(unsigned int cpu, int seconds);
+bool cpu_report_death(void);
+#endif /* #ifdef CONFIG_HOTPLUG_CPU */
+
 #endif /* _LINUX_CPU_H_ */
