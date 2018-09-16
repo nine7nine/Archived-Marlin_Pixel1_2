@@ -1544,7 +1544,7 @@ SYSCALL_DEFINE1(old_mmap, struct mmap_arg_struct __user *, arg)
 
 	if (copy_from_user(&a, arg, sizeof(a)))
 		return -EFAULT;
-	if (a.offset & ~PAGE_MASK)
+	if (offset_in_page(a.offset))
 		return -EINVAL;
 
 	return sys_mmap_pgoff(a.addr, a.len, a.prot, a.flags, a.fd,
@@ -1713,11 +1713,11 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 			kleave(" = -EINVAL [superset]");
 			return -EINVAL;
 		}
-		if (start & ~PAGE_MASK) {
+		if (offset_in_page(start)) {
 			kleave(" = -EINVAL [unaligned start]");
 			return -EINVAL;
 		}
-		if (end != vma->vm_end && end & ~PAGE_MASK) {
+		if (end != vma->vm_end && offset_in_page(end)) {
 			kleave(" = -EINVAL [unaligned split]");
 			return -EINVAL;
 		}
@@ -1807,7 +1807,7 @@ static unsigned long do_mremap(unsigned long addr,
 	if (old_len == 0 || new_len == 0)
 		return (unsigned long) -EINVAL;
 
-	if (addr & ~PAGE_MASK)
+	if (offset_in_page(addr))
 		return -EINVAL;
 
 	if (flags & MREMAP_FIXED && new_addr != addr)
