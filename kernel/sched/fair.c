@@ -3713,20 +3713,58 @@ static inline void check_schedstat_required(void)
 #endif
 }
 
+
+/*
+ * MIGRATION
+ *
+ *	dequeue
+ *	  update_curr()
+ *	    update_min_vruntime()
+ *	  vruntime -= min_vruntime
+ *
+ *	enqueue
+ *	  update_curr()
+ *	    update_min_vruntime()
+ *	  vruntime += min_vruntime
+ *
+ * this way the vruntime transition between RQs is done when both
+ * min_vruntime are up-to-date.
+ *
+ * WAKEUP (remote)
+ *
+ *	->migrate_task_rq_fair() (p->state == TASK_WAKING)
+ *	  vruntime -= min_vruntime
+ *
+ *	enqueue
+ *	  update_curr()
+ *	    update_min_vruntime()
+ *	  vruntime += min_vruntime
+ *
+ * this way we don't have the most up-to-date min_vruntime on the originating
+ * CPU and an up-to-date min_vruntime on the destination CPU.
+ */
+
 static void
 enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
-	/*
-	 * Update the normalized vruntime before updating min_vruntime
-	 * through calling update_curr().
-	 */
-	if (!(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_WAKING))
-		se->vruntime += cfs_rq->min_vruntime;
+	bool renorm = !(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_MIGRATED);
+	bool curr = cfs_rq->curr == se;
 
 	/*
-	 * Update run-time statistics of the 'current'.
+	 * If we're the current task, we must renormalise before calling
+	 * update_curr().
 	 */
+	if (renorm && curr)
+		se->vruntime += cfs_rq->min_vruntime;
+
 	update_curr(cfs_rq);
+
+	/*
+	 * Otherwise, renormalise after, such that we're placed at the current
+	 * moment in time, instead of some random moment in the past.
+	 */
+	if (renorm && !curr)
+		se->vruntime += cfs_rq->min_vruntime;
 	update_load_avg(se, UPDATE_TG);
 	enqueue_entity_load_avg(cfs_rq, se);
 	update_cfs_shares(se);
@@ -3738,7 +3776,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 	check_schedstat_required();
 	update_stats_enqueue(cfs_rq, se, flags);
 	check_spread(cfs_rq, se);
-	if (se != cfs_rq->curr)
+	if (!curr)
 		__enqueue_entity(cfs_rq, se);
 	se->on_rq = 1;
 
@@ -5320,28 +5358,6 @@ static void record_wakee(struct task_struct *p)
 		current->last_wakee = p;
 		current->wakee_flips++;
 	}
-}
-
-static void task_waking_fair(struct task_struct *p)
-{
-	struct sched_entity *se = &p->se;
-	struct cfs_rq *cfs_rq = cfs_rq_of(se);
-	u64 min_vruntime;
-
-#ifndef CONFIG_64BIT
-	u64 min_vruntime_copy;
-
-	do {
-		min_vruntime_copy = cfs_rq->min_vruntime_copy;
-		smp_rmb();
-		min_vruntime = cfs_rq->min_vruntime;
-	} while (min_vruntime != min_vruntime_copy);
-#else
-	min_vruntime = cfs_rq->min_vruntime;
-#endif
-
-	se->vruntime -= min_vruntime;
-	record_wakee(p);
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -7116,6 +7132,32 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
  */
 static void migrate_task_rq_fair(struct task_struct *p)
 {
+	/*
+	 * As blocked tasks retain absolute vruntime the migration needs to
+	 * deal with this by subtracting the old and adding the new
+	 * min_vruntime -- the latter is done by enqueue_entity() when placing
+	 * the task on the new runqueue.
+	 */
+	if (p->state == TASK_WAKING) {
+		struct sched_entity *se = &p->se;
+		struct cfs_rq *cfs_rq = cfs_rq_of(se);
+		u64 min_vruntime;
+
+#ifndef CONFIG_64BIT
+		u64 min_vruntime_copy;
+
+		do {
+			min_vruntime_copy = cfs_rq->min_vruntime_copy;
+			smp_rmb();
+			min_vruntime = cfs_rq->min_vruntime;
+		} while (min_vruntime != min_vruntime_copy);
+#else
+		min_vruntime = cfs_rq->min_vruntime;
+#endif
+
+		se->vruntime -= min_vruntime;
+	}
+
 	/*
 	 * We are supposed to update the task to "current" time, then its up to date
 	 * and ready to go to new CPU/cfs_rq. But we have difficulty in getting
@@ -10780,7 +10822,6 @@ const struct sched_class fair_sched_class = {
 	.rq_online		= rq_online_fair,
 	.rq_offline		= rq_offline_fair,
 
-	.task_waking		= task_waking_fair,
 	.task_dead		= task_dead_fair,
 	.set_cpus_allowed	= set_cpus_allowed_common,
 #endif
