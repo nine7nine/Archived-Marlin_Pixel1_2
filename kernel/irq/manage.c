@@ -762,9 +762,19 @@ static irqreturn_t irq_forced_secondary_handler(int irq, void *dev_id)
 
 static int irq_wait_for_interrupt(struct irqaction *action)
 {
-	set_current_state(TASK_INTERRUPTIBLE);
+	for (;;) {
+		set_current_state(TASK_INTERRUPTIBLE);
 
-	while (!kthread_should_stop()) {
+		if (kthread_should_stop()) {
+			/* may need to run one last time */
+			if (test_and_clear_bit(IRQTF_RUNTHREAD,
+					       &action->thread_flags)) {
+				__set_current_state(TASK_RUNNING);
+				return 0;
+			}
+			__set_current_state(TASK_RUNNING);
+			return -1;
+		}
 
 		if (test_and_clear_bit(IRQTF_RUNTHREAD,
 				       &action->thread_flags)) {
@@ -772,10 +782,7 @@ static int irq_wait_for_interrupt(struct irqaction *action)
 			return 0;
 		}
 		schedule();
-		set_current_state(TASK_INTERRUPTIBLE);
 	}
-	__set_current_state(TASK_RUNNING);
-	return -1;
 }
 
 /*
@@ -992,7 +999,7 @@ static int irq_thread(void *data)
 	/*
 	 * This is the regular exit path. __free_irq() is stopping the
 	 * thread via kthread_stop() after calling
-	 * synchronize_irq(). So neither IRQTF_RUNTHREAD nor the
+	 * synchronize_hardirq(). So neither IRQTF_RUNTHREAD nor the
 	 * oneshot mask bit can be set. We cannot verify that as we
 	 * cannot touch the oneshot mask at this point anymore as
 	 * __setup_irq() might have given out currents thread_mask
@@ -1036,6 +1043,13 @@ static int irq_setup_forced_threading(struct irqaction *new)
 	if (new->flags & (IRQF_NO_THREAD | IRQF_PERCPU | IRQF_ONESHOT))
 		return 0;
 
+	/*
+	 * No further action required for interrupts which are requested as
+	 * threaded interrupts already
+	 */
+	if (new->handler == irq_default_primary_handler)
+		return 0;
+
 	new->flags |= IRQF_ONESHOT;
 
 	/*
@@ -1043,7 +1057,7 @@ static int irq_setup_forced_threading(struct irqaction *new)
 	 * thread handler. We force thread them as well by creating a
 	 * secondary action.
 	 */
-	if (new->handler != irq_default_primary_handler && new->thread_fn) {
+	if (new->handler && new->thread_fn) {
 		/* Allocate the secondary action */
 		new->secondary = kzalloc(sizeof(struct irqaction), GFP_KERNEL);
 		if (!new->secondary)
@@ -1545,9 +1559,6 @@ static struct irqaction *__free_irq(unsigned int irq, void *dev_id)
 
 	WARN(in_interrupt(), "Trying to free IRQ %d from IRQ context!\n", irq);
 
-	if (!desc)
-		return NULL;
-
 	raw_spin_lock_irqsave(&desc->lock, flags);
 
 	/*
@@ -1562,6 +1573,7 @@ static struct irqaction *__free_irq(unsigned int irq, void *dev_id)
 			WARN(1, "Trying to free already-free IRQ %d\n", irq);
 			raw_spin_unlock_irqrestore(&desc->lock, flags);
 
+			chip_bus_sync_unlock(desc);
 			return NULL;
 		}
 
@@ -1593,7 +1605,7 @@ static struct irqaction *__free_irq(unsigned int irq, void *dev_id)
 	unregister_handler_proc(irq, action);
 
 	/* Make sure it's not being used on another CPU: */
-	synchronize_irq(irq);
+	synchronize_hardirq(irq);
 
 #ifdef CONFIG_DEBUG_SHIRQ
 	/*
@@ -1611,6 +1623,12 @@ static struct irqaction *__free_irq(unsigned int irq, void *dev_id)
 	}
 #endif
 
+	/*
+	 * The action has already been removed above, but the thread writes
+	 * its oneshot mask bit when it completes. Though request_mutex is
+	 * held across this which prevents __setup_irq() from handing out
+	 * the same bit to a newly requested action.
+	 */
 	if (action->thread) {
 		kthread_stop(action->thread);
 		put_task_struct(action->thread);
@@ -1667,9 +1685,7 @@ void free_irq(unsigned int irq, void *dev_id)
 		desc->affinity_notify = NULL;
 #endif
 
-	chip_bus_lock(desc);
 	kfree(__free_irq(irq, dev_id));
-	chip_bus_sync_unlock(desc);
 }
 EXPORT_SYMBOL(free_irq);
 
@@ -1865,6 +1881,31 @@ out:
 }
 EXPORT_SYMBOL_GPL(enable_percpu_irq);
 
+/**
+ * irq_percpu_is_enabled - Check whether the per cpu irq is enabled
+ * @irq:	Linux irq number to check for
+ *
+ * Must be called from a non migratable context. Returns the enable
+ * state of a per cpu interrupt on the current cpu.
+ */
+bool irq_percpu_is_enabled(unsigned int irq)
+{
+	unsigned int cpu = smp_processor_id();
+	struct irq_desc *desc;
+	unsigned long flags;
+	bool is_enabled;
+
+	desc = irq_get_desc_lock(irq, &flags, IRQ_GET_DESC_CHECK_PERCPU);
+	if (!desc)
+		return false;
+
+	is_enabled = cpumask_test_cpu(cpu, desc->percpu_enabled);
+	irq_put_desc_unlock(desc, flags);
+
+	return is_enabled;
+}
+EXPORT_SYMBOL_GPL(irq_percpu_is_enabled);
+
 void disable_percpu_irq(unsigned int irq)
 {
 	unsigned int cpu = smp_processor_id();
@@ -1893,6 +1934,7 @@ static struct irqaction *__free_percpu_irq(unsigned int irq, void __percpu *dev_
 	if (!desc)
 		return NULL;
 
+	chip_bus_lock(desc);
 	raw_spin_lock_irqsave(&desc->lock, flags);
 
 	action = desc->action;
@@ -1911,6 +1953,7 @@ static struct irqaction *__free_percpu_irq(unsigned int irq, void __percpu *dev_
 	desc->action = NULL;
 
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
+	chip_bus_sync_unlock(desc);
 
 	unregister_handler_proc(irq, action);
 
@@ -1960,6 +2003,7 @@ void free_percpu_irq(unsigned int irq, void __percpu *dev_id)
 	kfree(__free_percpu_irq(irq, dev_id));
 	chip_bus_sync_unlock(desc);
 }
+EXPORT_SYMBOL_GPL(free_percpu_irq);
 
 /**
  *	setup_percpu_irq - setup a per-cpu interrupt
@@ -1981,6 +2025,7 @@ int setup_percpu_irq(unsigned int irq, struct irqaction *act)
 
 	return retval;
 }
+EXPORT_SYMBOL_GPL(request_percpu_irq);
 
 /**
  *	request_percpu_irq - allocate a percpu interrupt line
@@ -1989,9 +2034,10 @@ int setup_percpu_irq(unsigned int irq, struct irqaction *act)
  *	@devname: An ascii name for the claiming device
  *	@dev_id: A percpu cookie passed back to the handler function
  *
- *	This call allocates interrupt resources, but doesn't
- *	automatically enable the interrupt. It has to be done on each
- *	CPU using enable_percpu_irq().
+ *	This call allocates interrupt resources and enables the
+ *	interrupt on the local CPU. If the interrupt is supposed to be
+ *	enabled on other CPUs, it has to be done on each CPU using
+ *	enable_percpu_irq().
  *
  *	Dev_id must be globally unique. It is a per-cpu variable, and
  *	the handler gets called with the interrupted CPU's instance of
