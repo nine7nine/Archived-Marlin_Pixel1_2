@@ -1443,12 +1443,6 @@ static int cpu_clock_8996_driver_probe(struct platform_device *pdev)
 	if (!ret)
 		pwrcl_early_boot_rate = clk_rate;
 
-	/* Override the existing ealry boot frequency for perf cluster */
-	ret = of_property_read_u32(pdev->dev.of_node,
-				"qcom,perfcl-early-boot-freq", &clk_rate);
-	if (!ret)
-		perfcl_early_boot_rate = clk_rate;
-
 	/* Set the early boot rate. This may also switch us to the ACD leg */
 	clk_set_rate(&pwrcl_clk.c, pwrcl_early_boot_rate);
 	clk_set_rate(&perfcl_clk.c, perfcl_early_boot_rate);
