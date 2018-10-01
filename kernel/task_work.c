@@ -18,6 +18,8 @@ static struct callback_head work_exited; /* all we need is ->next == NULL */
  * This is like the signal handler which runs in kernel mode, but it doesn't
  * try to wake up the @task.
  *
+ * Note: there is no ordering guarantee on works queued here.
+ *
  * RETURNS:
  * 0 if succeeds or -ESRCH.
  */
@@ -27,7 +29,7 @@ task_work_add(struct task_struct *task, struct callback_head *work, bool notify)
 	struct callback_head *head;
 
 	do {
-		head = ACCESS_ONCE(task->task_works);
+		head = READ_ONCE(task->task_works);
 		if (unlikely(head == &work_exited))
 			return -ESRCH;
 		work->next = head;
@@ -62,8 +64,7 @@ task_work_cancel(struct task_struct *task, task_work_func_t func)
 	 * we raced with task_work_run(), *pprev == NULL/exited.
 	 */
 	raw_spin_lock_irqsave(&task->pi_lock, flags);
-	while ((work = ACCESS_ONCE(*pprev))) {
-		smp_read_barrier_depends();
+	while ((work = READ_ONCE(*pprev))) {
 		if (work->func != func)
 			pprev = &work->next;
 		else if (cmpxchg(pprev, work, work->next) == work)
@@ -92,21 +93,16 @@ void task_work_run(void)
 		 * work->func() can do task_work_add(), do not set
 		 * work_exited unless the list is empty.
 		 */
+		raw_spin_lock_irq(&task->pi_lock);
 		do {
-			work = ACCESS_ONCE(task->task_works);
+			work = READ_ONCE(task->task_works);
 			head = !work && (task->flags & PF_EXITING) ?
 				&work_exited : NULL;
 		} while (cmpxchg(&task->task_works, work, head) != work);
+		raw_spin_unlock_irq(&task->pi_lock);
 
 		if (!work)
 			break;
-		/*
-		 * Synchronize with task_work_cancel(). It can't remove
-		 * the first entry == work, cmpxchg(task_works) should
-		 * fail, but it can play with *work and other entries.
-		 */
-		raw_spin_unlock_wait(&task->pi_lock);
-		smp_mb();
 
 		/* Reverse the list to run the works in fifo order */
 		head = NULL;
