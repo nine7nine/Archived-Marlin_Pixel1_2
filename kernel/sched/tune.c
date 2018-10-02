@@ -712,6 +712,9 @@ prefer_idle_write(struct cgroup_subsys_state *css, struct cftype *cft,
 	struct schedtune *st = css_st(css);
 	st->prefer_idle = prefer_idle;
 
+	/* Update CPU boost */
+	schedtune_boostgroup_update(st->idx, st->boost);
+
 	return 0;
 }
 
@@ -847,8 +850,17 @@ out:
 static void
 schedtune_boostgroup_release(struct schedtune *st)
 {
-	/* Reset this boost group */
-	schedtune_boostgroup_update(st->idx, 0);
+	struct boost_groups *bg;
+	int cpu;
+
+	/* Reset per CPUs boost group support */
+	for_each_possible_cpu(cpu) {
+		bg = &per_cpu(cpu_boost_groups, cpu);
+		bg->group[st->idx].boost = 0;
+		bg->group[st->idx].tasks = 0;
+		bg->group[st->idx].ts = 0;
+		raw_spin_unlock(&bg->lock);
+	}
 
 	/* Keep track of allocated boost groups */
 	allocated_group[st->idx] = NULL;
@@ -859,6 +871,7 @@ schedtune_css_free(struct cgroup_subsys_state *css)
 {
 	struct schedtune *st = css_st(css);
 
+	/* Release per CPUs boost group support */
 	schedtune_boostgroup_release(st);
 	kfree(st);
 }
@@ -1212,5 +1225,3 @@ nodata:
 	return -EINVAL;
 }
 postcore_initcall(schedtune_init);
-
-
