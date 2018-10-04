@@ -76,6 +76,18 @@
 static DEFINE_PER_CPU_ALIGNED(struct mcs_spinlock, mcs_nodes[4]);
 
 /*
+ * The pending bit spinning loop count.
+ * This heuristic is used to limit the number of lockword accesses
+ * made by atomic_cond_read_relaxed when waiting for the lock to
+ * transition out of the "== _Q_PENDING_VAL" state. We don't spin
+ * indefinitely because there's no guarantee that we'll make forward
+ * progress.
+ */
+#ifndef _Q_PENDING_LOOPS
+#define _Q_PENDING_LOOPS	1
+#endif
+
+/*
  * We must be able to distinguish between no-tail and the tail at 0:0,
  * therefore increment the cpu number by one.
  */
@@ -130,10 +142,10 @@ static __always_inline void clear_pending_set_locked(struct qspinlock *lock)
 static __always_inline u32 xchg_tail(struct qspinlock *lock, u32 tail)
 {
 	/*
-	 * Use release semantics to make sure that the MCS node is properly
-	 * initialized before changing the tail code.
+	 * We can use relaxed semantics since the caller ensures that the
+	 * MCS node is properly initialized before updating the tail.
 	 */
-	return (u32)xchg_release(&lock->tail,
+	return (u32)xchg_relaxed(&lock->tail,
 				 tail >> _Q_TAIL_OFFSET) << _Q_TAIL_OFFSET;
 }
 
@@ -167,10 +179,11 @@ static __always_inline u32 xchg_tail(struct qspinlock *lock, u32 tail)
 	for (;;) {
 		new = (val & _Q_LOCKED_PENDING_MASK) | tail;
 		/*
-		 * Use release semantics to make sure that the MCS node is
-		 * properly initialized before changing the tail code.
+		 * We can use relaxed semantics since the caller ensures that
+		 * the MCS node is properly initialized before updating the
+		 * tail.
 		 */
-		old = atomic_cmpxchg_release(&lock->val, val, new);
+		old = atomic_cmpxchg_relaxed(&lock->val, val, new);
 		if (old == val)
 			break;
 
@@ -221,13 +234,15 @@ void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val)
 	BUILD_BUG_ON(CONFIG_NR_CPUS >= (1U << _Q_TAIL_CPU_BITS));
 
 	/*
-	 * wait for in-progress pending->locked hand-overs
+	 * Wait for in-progress pending->locked hand-overs with a bounded
+	 * number of spins so that we guarantee forward progress.
 	 *
 	 * 0,1,0 -> 0,0,1
 	 */
 	if (val == _Q_PENDING_VAL) {
-		while ((val = atomic_read(&lock->val)) == _Q_PENDING_VAL)
-			cpu_relax();
+		int cnt = _Q_PENDING_LOOPS;
+		val = atomic_cond_read_relaxed(&lock->val,
+					       (VAL != _Q_PENDING_VAL) || !cnt--);
 	}
 
 	/*
@@ -314,12 +329,18 @@ queue:
 		goto release;
 
 	/*
+	 * Ensure that the initialisation of @node is complete before we
+	 * publish the updated tail via xchg_tail() and potentially link
+	 * @node into the waitqueue via WRITE_ONCE(prev->next, node) below.
+	 */
+	smp_wmb();
+
+	/*
+	 * Publish the updated tail.
 	 * We have already touched the queueing cacheline; don't bother with
 	 * pending stuff.
 	 *
 	 * p,*,* -> n,*,*
-	 *
-	 * RELEASE, such that the stores to @node must be complete.
 	 */
 	old = xchg_tail(lock, tail);
 	next = NULL;
@@ -330,15 +351,8 @@ queue:
 	 */
 	if (old & _Q_TAIL_MASK) {
 		prev = decode_tail(old);
-		/*
-		 * The above xchg_tail() is also a load of @lock which generates,
-		 * through decode_tail(), a pointer.
-		 *
-		 * The address dependency matches the RELEASE of xchg_tail()
-		 * such that the access to @prev must happen after.
-		 */
-		smp_read_barrier_depends();
 
+		/* Link @node into the waitqueue. */
 		WRITE_ONCE(prev->next, node);
 
 		arch_mcs_spin_lock_contended(&node->locked);
@@ -378,30 +392,22 @@ queue:
 	 * clear the tail code and grab the lock. Otherwise, we only need
 	 * to grab the lock.
 	 */
-	for (;;) {
-		if (val != tail) {
-			set_locked(lock);
-			break;
-		}
 		/*
 		 * The smp_cond_load_acquire() call above has provided the
-		 * necessary acquire semantics required for locking. At most
-		 * two iterations of this loop may be ran.
-		 */
-		old = atomic_cmpxchg_relaxed(&lock->val, val, _Q_LOCKED_VAL);
-		if (old == val)
-			goto release;	/* No contention */
+	 * necessary acquire semantics required for locking.
+	 */
+	if (((val & _Q_TAIL_MASK) == tail) &&
+	    atomic_try_cmpxchg_relaxed(&lock->val, &val, _Q_LOCKED_VAL))
+		goto release; /* No contention */
 
-		val = old;
-	}
+	/* Either somebody is queued behind us or _Q_PENDING_VAL is set */
+	set_locked(lock);
 
 	/*
 	 * contended path; wait for next if not observed yet, release.
 	 */
-	if (!next) {
-		while (!(next = READ_ONCE(node->next)))
-			cpu_relax();
-	}
+	if (!next)
+		next = smp_cond_load_relaxed(&node->next, (VAL));
 
 	arch_mcs_spin_unlock_contended(&next->locked);
 
