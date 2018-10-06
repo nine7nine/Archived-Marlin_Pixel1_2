@@ -220,7 +220,7 @@ static int sock_xmit(struct nbd_device *nbd, int send, void *buf, int size,
 	} while (size > 0);
 
 	sigprocmask(SIG_SETMASK, &oldset, NULL);
-	tsk_restore_flags(current, pflags, PF_MEMALLOC);
+	current_restore_flags(pflags, PF_MEMALLOC);
 
 	return result;
 }
