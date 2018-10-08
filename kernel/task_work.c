@@ -57,6 +57,9 @@ task_work_cancel(struct task_struct *task, task_work_func_t func)
 	struct callback_head **pprev = &task->task_works;
 	struct callback_head *work;
 	unsigned long flags;
+
+	if (likely(!task->task_works))
+		return NULL;
 	/*
 	 * If cmpxchg() fails we continue without updating pprev.
 	 * Either we raced with task_work_add() which added the
@@ -104,16 +107,6 @@ void task_work_run(void)
 		if (!work)
 			break;
 
-		/* Reverse the list to run the works in fifo order */
-		head = NULL;
-		do {
-			next = work->next;
-			work->next = head;
-			head = work;
-			work = next;
-		} while (work);
-
-		work = head;
 		do {
 			next = work->next;
 			work->func(work);
