@@ -117,6 +117,7 @@ static inline void tick_irq_enter(void) { }
 static inline int tick_oneshot_mode_active(void) { return 0; }
 # endif
 
+extern void tick_handover_do_timer(void);
 #else /* CONFIG_GENERIC_CLOCKEVENTS */
 static inline void tick_init(void) { }
 static inline void tick_cancel_sched_timer(int cpu) { }
@@ -124,6 +125,7 @@ static inline void tick_clock_notify(void) { }
 static inline int tick_check_oneshot_change(int allow_nohz) { return 0; }
 static inline void tick_irq_enter(void) { }
 static inline int tick_oneshot_mode_active(void) { return 0; }
+static inline void tick_handover_do_timer(void) { }
 #endif /* !CONFIG_GENERIC_CLOCKEVENTS */
 
 # ifdef CONFIG_NO_HZ_COMMON
