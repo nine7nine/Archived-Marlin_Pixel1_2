@@ -101,12 +101,13 @@ int cnss_wlan_set_dfs_nol(const void *info, u16 info_len)
 		return -EINVAL;
 	}
 
-	temp = kmemdup(info, info_len, GFP_KERNEL);
+	temp = kmalloc(info_len, GFP_KERNEL);
 	if (!temp) {
 		mutex_unlock(&dfs_nol_info_lock);
 		return -ENOMEM;
 	}
 
+	memcpy(temp, info, info_len);
 	dfs_info = &dfs_nol_info;
 	kfree(dfs_info->dfs_nol_info);
 
