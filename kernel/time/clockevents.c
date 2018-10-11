@@ -565,13 +565,6 @@ int clockevents_notify(unsigned long reason, void *arg)
 		tick_broadcast_force();
 		break;
 
-	case CLOCK_EVT_NOTIFY_BROADCAST_ENTER:
-		tick_broadcast_enter();
-		break;
-	case CLOCK_EVT_NOTIFY_BROADCAST_EXIT:
-		tick_broadcast_exit();
-		break;
-
 	case CLOCK_EVT_NOTIFY_SUSPEND:
 		tick_suspend();
 		tick_suspend_broadcast();
