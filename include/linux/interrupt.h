@@ -39,8 +39,6 @@
  * These flags used only by the kernel as part of the
  * irq handling routines.
  *
- * IRQF_DISABLED - keep irqs disabled when calling the action handler.
- *                 DEPRECATED. This flag is a NOOP and scheduled to be removed
  * IRQF_SHARED - allow sharing the irq among several devices
  * IRQF_PROBE_SHARED - set by callers when they expect sharing mismatches to occur
  * IRQF_TIMER - Flag to mark this interrupt as timer interrupt
@@ -52,15 +50,17 @@
  * IRQF_ONESHOT - Interrupt is not reenabled after the hardirq handler finished.
  *                Used by threaded interrupts which need to keep the
  *                irq line disabled until the threaded handler has been run.
- * IRQF_NO_SUSPEND - Do not disable this IRQ during suspend
+ * IRQF_NO_SUSPEND - Do not disable this IRQ during suspend.  Does not guarantee
+ *                   that this interrupt will wake the system from a suspended
+ *                   state.  See Documentation/power/suspend-and-interrupts.txt
  * IRQF_FORCE_RESUME - Force enable it on resume even if IRQF_NO_SUSPEND is set
  * IRQF_NO_THREAD - Interrupt cannot be threaded
  * IRQF_EARLY_RESUME - Resume IRQ early during syscore instead of at device
  *                resume time.
- * IRQF_TH_SCHED_NORMAL - If the IRQ is threaded, it will use SCHED_NORMAL,
- *                instead the default SCHED_FIFO scheduler
- * IRQF_TH_NO_AFFINITY - If the IRQ is threaded, the affinity hint will not be
- *                enforced in the IRQ thread
+ * IRQF_COND_SUSPEND - If the IRQ is shared with a NO_SUSPEND user, execute this
+ *                interrupt handler after suspending interrupts. For system
+ *                wakeup devices users need to implement wakeup detection in
+ *                their interrupt handlers.
  * IRQF_PERF_CRITICAL - Interrupt is critical to the overall performance of the
  * 		  system and should be processed on a fast CPU.
  * IRQF_TH_SCHED_FIFO_LOW - If the IRQ is threaded, it will use SCHED_FIFO,
@@ -68,7 +68,6 @@
  * IRQF_TH_SCHED_FIFO_HI - If the IRQ is threaded, it will use SCHED_NORMAL,
  *                but will have higher priority than the threaded IRQ default
  */
-#define IRQF_DISABLED		0x00000020
 #define IRQF_SHARED		0x00000080
 #define IRQF_PROBE_SHARED	0x00000100
 #define __IRQF_TIMER		0x00000200
@@ -80,11 +79,12 @@
 #define IRQF_FORCE_RESUME	0x00008000
 #define IRQF_NO_THREAD		0x00010000
 #define IRQF_EARLY_RESUME	0x00020000
-#define IRQF_TH_SCHED_NORMAL	0x00040000
-#define IRQF_TH_NO_AFFINITY	0x00080000
-#define IRQF_PERF_CRITICAL	0x00100000
-#define IRQF_TH_SCHED_FIFO_LOW	0x00200000
-#define IRQF_TH_SCHED_FIFO_HI	0x00400000
+#define IRQF_COND_SUSPEND	0x00080000
+#define IRQF_TH_SCHED_NORMAL	0x00100000
+#define IRQF_TH_NO_AFFINITY	0x00200000
+#define IRQF_PERF_CRITICAL	0x00400000
+#define IRQF_TH_SCHED_FIFO_LOW	0x00800000
+#define IRQF_TH_SCHED_FIFO_HI	0x01000000
 
 #define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NO_THREAD)
 

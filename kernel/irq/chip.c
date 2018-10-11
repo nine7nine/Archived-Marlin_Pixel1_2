@@ -781,15 +781,9 @@ bool handle_percpu_devid_irq(unsigned int irq, struct irq_desc *desc)
 }
 
 void
-__irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
-		  const char *name)
+__irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
+		     int is_chained, const char *name)
 {
-	unsigned long flags;
-	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
-
-	if (!desc)
-		return;
-
 	if (!handle) {
 		handle = handle_bad_irq;
 	} else {
@@ -811,13 +805,13 @@ __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 			 * right away.
 			 */
 			if (WARN_ON(is_chained))
-				goto out;
+				return;
 			/* Try the parent */
 			irq_data = irq_data->parent_data;
 		}
 #endif
 		if (WARN_ON(!irq_data || irq_data->chip == &no_irq_chip))
-			goto out;
+			return;
 	}
 
 	/* Uninstall? */
@@ -839,10 +833,39 @@ __irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
 		desc->action = &chained_action;
 		irq_startup(desc, true);
 	}
-out:
+}
+
+void
+__irq_set_handler(unsigned int irq, irq_flow_handler_t handle, int is_chained,
+		  const char *name)
+{
+	unsigned long flags;
+	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
+
+	if (!desc)
+		return;
+
+	__irq_do_set_handler(desc, handle, is_chained, name);
 	irq_put_desc_busunlock(desc, flags);
 }
 EXPORT_SYMBOL_GPL(__irq_set_handler);
+
+void
+irq_set_chained_handler_and_data(unsigned int irq, irq_flow_handler_t handle,
+				 void *data)
+{
+	unsigned long flags;
+	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags, 0);
+
+	if (!desc)
+		return;
+
+	__irq_do_set_handler(desc, handle, 1, NULL);
+	desc->irq_data.handler_data = data;
+
+	irq_put_desc_busunlock(desc, flags);
+}
+EXPORT_SYMBOL_GPL(irq_set_chained_handler_and_data);
 
 void
 irq_set_chip_and_handler_name(unsigned int irq, struct irq_chip *chip,
@@ -863,7 +886,8 @@ void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set)
 	irq_settings_clr_and_set(desc, clr, set);
 
 	irqd_clear(&desc->irq_data, IRQD_NO_BALANCING | IRQD_PER_CPU |
-		   IRQD_TRIGGER_MASK | IRQD_LEVEL | IRQD_MOVE_PCNTXT);
+		   IRQD_TRIGGER_MASK | IRQD_LEVEL | IRQD_MOVE_PCNTXT |
+		   IRQD_AFFINITY_MANAGED);
 	if (irq_settings_has_no_balance_set(desc))
 		irqd_set(&desc->irq_data, IRQD_NO_BALANCING);
 	if (irq_settings_is_per_cpu(desc))
@@ -872,6 +896,8 @@ void irq_modify_status(unsigned int irq, unsigned long clr, unsigned long set)
 		irqd_set(&desc->irq_data, IRQD_MOVE_PCNTXT);
 	if (irq_settings_is_level(desc))
 		irqd_set(&desc->irq_data, IRQD_LEVEL);
+	if (irq_settings_has_affinity_managed_set(desc))
+		irqd_set(&desc->irq_data, IRQD_AFFINITY_MANAGED);
 
 	irqd_set(&desc->irq_data, irq_settings_get_trigger_mask(desc));
 
@@ -940,6 +966,34 @@ void irq_cpu_offline(void)
 }
 
 #ifdef	CONFIG_IRQ_DOMAIN_HIERARCHY
+/**
+ * irq_chip_enable_parent - Enable the parent interrupt (defaults to unmask if
+ * NULL)
+ * @data:	Pointer to interrupt specific data
+ */
+void irq_chip_enable_parent(struct irq_data *data)
+{
+	data = data->parent_data;
+	if (data->chip->irq_enable)
+		data->chip->irq_enable(data);
+	else
+		data->chip->irq_unmask(data);
+}
+
+/**
+ * irq_chip_disable_parent - Disable the parent interrupt (defaults to mask if
+ * NULL)
+ * @data:	Pointer to interrupt specific data
+ */
+void irq_chip_disable_parent(struct irq_data *data)
+{
+	data = data->parent_data;
+	if (data->chip->irq_disable)
+		data->chip->irq_disable(data);
+	else
+		data->chip->irq_mask(data);
+}
+
 /**
  * irq_chip_ack_parent - Acknowledge the parent interrupt
  * @data:	Pointer to interrupt specific data

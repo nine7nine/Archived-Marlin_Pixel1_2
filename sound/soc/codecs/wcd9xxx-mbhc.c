@@ -4278,8 +4278,7 @@ static int wcd9xxx_setup_jack_detect_irq(struct wcd9xxx_mbhc *mbhc)
 					   wcd9xxx_mech_plug_detect_irq,
 					   (IRQF_TRIGGER_RISING |
 					    IRQF_TRIGGER_FALLING |
-					    IRQF_TH_SCHED_FIFO_HI |
-					    IRQF_DISABLED),
+					    IRQF_TH_SCHED_FIFO_HI), 
 					   "headset detect", mbhc);
 		if (ret) {
 			pr_err("%s: Failed to request gpio irq %d\n", __func__,
@@ -4340,7 +4339,6 @@ static int wcd9xxx_init_and_calibrate(struct wcd9xxx_mbhc *mbhc)
 		ret = wcd9xxx_setup_jack_detect_irq(mbhc);
 
 		if (!ret && mbhc->mbhc_cfg->gpio) {
-			/* Requested with IRQF_DISABLED */
 			enable_irq(mbhc->mbhc_cfg->gpio_irq);
 
 			/* Bootup time detection */
