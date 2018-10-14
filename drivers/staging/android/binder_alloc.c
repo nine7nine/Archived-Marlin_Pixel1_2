@@ -230,7 +230,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		mm = alloc->vma_vm_mm;
 
 	if (mm) {
-		down_write(&mm->mmap_sem);
+		down_read(&mm->mmap_sem);
 		vma = alloc->vma;
 	}
 
@@ -299,7 +299,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		/* vm_insert_page does not seem to increment the refcount */
 	}
 	if (mm) {
-		up_write(&mm->mmap_sem);
+		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}
 	return 0;
@@ -332,17 +332,46 @@ err_page_ptr_cleared:
 	}
 err_no_vma:
 	if (mm) {
-		up_write(&mm->mmap_sem);
+		up_read(&mm->mmap_sem);
 		mmput(mm);
 	}
 	return vma ? -ENOMEM : -ESRCH;
 }
 
-struct binder_buffer *binder_alloc_new_buf_locked(struct binder_alloc *alloc,
-						  size_t data_size,
-						  size_t offsets_size,
-						  size_t extra_buffers_size,
-						  int is_async)
+static inline void binder_alloc_set_vma(struct binder_alloc *alloc,
+		struct vm_area_struct *vma)
+{
+	if (vma)
+		alloc->vma_vm_mm = vma->vm_mm;
+	/*
+	 * If we see alloc->vma is not NULL, buffer data structures set up
+	 * completely. Look at smp_rmb side binder_alloc_get_vma.
+	 * We also want to guarantee new alloc->vma_vm_mm is always visible
+	 * if alloc->vma is set.
+	 */
+	smp_wmb();
+	alloc->vma = vma;
+}
+
+static inline struct vm_area_struct *binder_alloc_get_vma(
+		struct binder_alloc *alloc)
+{
+	struct vm_area_struct *vma = NULL;
+
+	if (alloc->vma) {
+		/* Look at description in binder_alloc_set_vma */
+		smp_rmb();
+		vma = alloc->vma;
+	}
+	return vma;
+}
+
+static struct binder_buffer *binder_alloc_new_buf_locked(
+				struct binder_alloc *alloc,
+				size_t data_size,
+				size_t offsets_size,
+				size_t extra_buffers_size,
+				int is_async)
 {
 	struct rb_node *n = alloc->free_buffers.rb_node;
 	struct binder_buffer *buffer;
@@ -353,7 +382,7 @@ struct binder_buffer *binder_alloc_new_buf_locked(struct binder_alloc *alloc,
 	size_t size, data_offsets_size;
 	int ret;
 
-	if (alloc->vma == NULL) {
+	if (!binder_alloc_get_vma(alloc)) {
 		pr_err("%d: binder_alloc_buf, no vma\n",
 		       alloc->pid);
 		return ERR_PTR(-ESRCH);
@@ -574,7 +603,7 @@ static void binder_delete_free_buffer(struct binder_alloc *alloc,
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
 				   "%d: merge free, buffer %pK do not share page with %pK or %pK\n",
 				   alloc->pid, buffer->data,
-				   prev->data, next->data);
+				   prev->data, next ? next->data : NULL);
 		binder_update_page_range(alloc, 0, buffer_start_page(buffer),
 					 buffer_start_page(buffer) + PAGE_SIZE);
 	}
@@ -680,7 +709,7 @@ int binder_alloc_mmap_handler(struct binder_alloc *alloc,
 		goto err_already_mapped;
 	}
 
-	area = get_vm_area(vma->vm_end - vma->vm_start, VM_IOREMAP);
+	area = get_vm_area(vma->vm_end - vma->vm_start, VM_ALLOC);
 	if (area == NULL) {
 		ret = -ENOMEM;
 		failure_string = "get_vm_area";
@@ -724,9 +753,7 @@ int binder_alloc_mmap_handler(struct binder_alloc *alloc,
 	buffer->free = 1;
 	binder_insert_free_buffer(alloc, buffer);
 	alloc->free_async_space = alloc->buffer_size / 2;
-	barrier();
-	alloc->vma = vma;
-	alloc->vma_vm_mm = vma->vm_mm;
+	binder_alloc_set_vma(alloc, vma);
 	/* Same as mmgrab() in later kernel versions */
 	atomic_inc(&alloc->vma_vm_mm->mm_count);
 
@@ -754,10 +781,11 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 	int buffers, page_count;
 	struct binder_buffer *buffer;
 
-	BUG_ON(alloc->vma);
-
 	buffers = 0;
 	rt_mutex_lock(&alloc->mutex);
+
+	BUG_ON(alloc->vma);
+
 	while ((n = rb_first(&alloc->allocated_buffers))) {
 		buffer = rb_entry(n, struct binder_buffer, rb_node);
 
@@ -900,7 +928,7 @@ int binder_alloc_get_allocated_count(struct binder_alloc *alloc)
  */
 void binder_alloc_vma_close(struct binder_alloc *alloc)
 {
-	WRITE_ONCE(alloc->vma, NULL);
+	binder_alloc_set_vma(alloc, NULL);
 }
 
 /**
@@ -934,7 +962,7 @@ enum lru_status binder_alloc_free_page(struct list_head *item,
 
 	index = page - alloc->pages;
 	page_addr = (uintptr_t)alloc->buffer + index * PAGE_SIZE;
-	vma = alloc->vma;
+	vma = binder_alloc_get_vma(alloc);
 	if (vma) {
 		/* Same as mmget_not_zero() in later kernel versions */
 		if (!atomic_inc_not_zero(&alloc->vma_vm_mm->mm_users))
@@ -999,7 +1027,7 @@ binder_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 	return ret;
 }
 
-struct shrinker binder_shrinker = {
+static struct shrinker binder_shrinker = {
 	.count_objects = binder_shrink_count,
 	.scan_objects = binder_shrink_scan,
 	.seeks = DEFAULT_SEEKS,
@@ -1019,8 +1047,14 @@ void binder_alloc_init(struct binder_alloc *alloc)
 	INIT_LIST_HEAD(&alloc->buffers);
 }
 
-void binder_alloc_shrinker_init(void)
+int binder_alloc_shrinker_init(void)
 {
-	list_lru_init(&binder_alloc_lru);
-	register_shrinker(&binder_shrinker);
+	int ret = list_lru_init(&binder_alloc_lru);
+
+	if (ret == 0) {
+		ret = register_shrinker(&binder_shrinker);
+		if (ret)
+			list_lru_destroy(&binder_alloc_lru);
+	}
+	return ret;
 }

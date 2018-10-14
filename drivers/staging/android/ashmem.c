@@ -338,24 +338,23 @@ static loff_t ashmem_llseek(struct file *file, loff_t offset, int origin)
 	rt_mutex_lock(&ashmem_mutex);
 
 	if (asma->size == 0) {
-		ret = -EINVAL;
-		goto out;
+		rt_mutex_unlock(&ashmem_mutex);
+		return -EINVAL;
 	}
 
 	if (!asma->file) {
-		ret = -EBADF;
-		goto out;
+		rt_mutex_unlock(&ashmem_mutex);
+		return -EBADF;
 	}
+
+	rt_mutex_unlock(&ashmem_mutex);
 
 	ret = vfs_llseek(asma->file, offset, origin);
 	if (ret < 0)
-		goto out;
+		return ret;
 
 	/** Copy f_pos from backing file, since f_ops->llseek() sets it */
 	file->f_pos = asma->file->f_pos;
-
-out:
-	rt_mutex_unlock(&ashmem_mutex);
 	return ret;
 }
 
@@ -553,6 +552,7 @@ static int get_name(struct ashmem_area *asma, void __user *name)
 
 	rt_mutex_lock(&ashmem_mutex);
 	if (asma->name[ASHMEM_NAME_PREFIX_LEN] != '\0') {
+
 		/*
 		 * Copying only `len', instead of ASHMEM_NAME_LEN, bytes
 		 * prevents us from revealing one user's stack to another.
@@ -665,7 +665,7 @@ restart:
 		if (page_range_subsumed_by_range(range, pgstart, pgend))
 			return 0;
 		if (page_range_in_range(range, pgstart, pgend)) {
-			pgstart = min_t(size_t, range->pgstart, pgstart);
+			pgstart = min_t(size_t, range->pgstart, pgstart),
 			pgend = max_t(size_t, range->pgend, pgend);
 			purged |= range->purged;
 			range_del(range);
