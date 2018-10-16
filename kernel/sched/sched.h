@@ -34,7 +34,7 @@ extern unsigned long calc_load_update;
 extern atomic_long_t calc_load_tasks;
 
 extern void calc_global_load_tick(struct rq *this_rq);
-extern long calc_load_fold_active(struct rq *this_rq);
+extern long calc_load_fold_active(struct rq *this_rq, long adjust);
 
 #ifdef CONFIG_SMP
 extern void update_cpu_load_active(struct rq *this_rq);
@@ -245,6 +245,9 @@ struct cfs_bandwidth {
 	u64 quota, runtime;
 	s64 hierarchical_quota;
 	u64 runtime_expires;
+	u64 last_active;
+	u64 slice;
+	u64 burst;
 
 	int idle, period_active;
 	struct hrtimer period_timer, slack_timer;
@@ -253,6 +256,7 @@ struct cfs_bandwidth {
 	/* statistics */
 	int nr_periods, nr_throttled;
 	u64 throttled_time;
+	bool distribute_running;
 #endif
 };
 
@@ -340,7 +344,6 @@ extern void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 extern void init_cfs_bandwidth(struct cfs_bandwidth *cfs_b);
 extern int sched_group_set_shares(struct task_group *tg, unsigned long shares);
 
-extern void __refill_cfs_bandwidth_runtime(struct cfs_bandwidth *cfs_b);
 extern void start_cfs_bandwidth(struct cfs_bandwidth *cfs_b);
 extern void unthrottle_cfs_rq(struct cfs_rq *cfs_rq);
 
@@ -840,6 +843,26 @@ static inline void rq_clock_skip_update(struct rq *rq, bool skip)
 		rq->clock_skip_update &= ~RQCF_REQ_SKIP;
 }
 
+struct rq_flags {
+	unsigned long flags;
+	struct pin_cookie cookie;
+};
+
+static inline void rq_pin_lock(struct rq *rq, struct rq_flags *rf)
+{
+	rf->cookie = lockdep_pin_lock(&rq->lock);
+}
+
+static inline void rq_unpin_lock(struct rq *rq, struct rq_flags *rf)
+{
+	lockdep_unpin_lock(&rq->lock, rf->cookie);
+}
+
+static inline void rq_repin_lock(struct rq *rq, struct rq_flags *rf)
+{
+	lockdep_repin_lock(&rq->lock, rf->cookie);
+}
+
 #ifdef CONFIG_NUMA
 enum numa_topology_type {
 	NUMA_DIRECT,
@@ -1299,7 +1322,7 @@ struct sched_class {
 	 */
 	struct task_struct * (*pick_next_task) (struct rq *rq,
 						struct task_struct *prev,
-						struct pin_cookie cookie);
+						struct rq_flags *rf);
 	void (*put_prev_task) (struct rq *rq, struct task_struct *p);
 
 #ifdef CONFIG_SMP
@@ -1419,6 +1442,8 @@ static inline int idle_get_state_idx(struct rq *rq)
 	return -1;
 }
 #endif
+
+extern void schedule_idle(void);
 
 extern void sysrq_sched_debug_show(void);
 extern void sched_init_granularity(void);
@@ -1703,11 +1728,6 @@ static inline void sched_rt_avg_update(struct rq *rq, u64 rt_delta) { }
 static inline void sched_avg_update(struct rq *rq) { }
 #endif
 
-struct rq_flags {
-	unsigned long flags;
-	struct pin_cookie cookie;
-};
-
 struct rq *__task_rq_lock(struct task_struct *p, struct rq_flags *rf)
 	__acquires(rq->lock);
 struct rq *task_rq_lock(struct task_struct *p, struct rq_flags *rf)
@@ -1717,7 +1737,7 @@ struct rq *task_rq_lock(struct task_struct *p, struct rq_flags *rf)
 static inline void __task_rq_unlock(struct rq *rq, struct rq_flags *rf)
 	__releases(rq->lock)
 {
-	lockdep_unpin_lock(&rq->lock, rf->cookie);
+	rq_unpin_lock(rq, rf);
 	raw_spin_unlock(&rq->lock);
 }
 
@@ -1726,7 +1746,7 @@ task_rq_unlock(struct rq *rq, struct task_struct *p, struct rq_flags *rf)
 	__releases(rq->lock)
 	__releases(p->pi_lock)
 {
-	lockdep_unpin_lock(&rq->lock, rf->cookie);
+	rq_unpin_lock(rq, rf);
 	raw_spin_unlock(&rq->lock);
 	raw_spin_unlock_irqrestore(&p->pi_lock, rf->flags);
 }

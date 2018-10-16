@@ -127,8 +127,7 @@
  * Check whether we were atomic before we did preempt_disable():
  * (used by the scheduler)
  */
-#define in_atomic_preempt_off() \
-		((preempt_count() & ~PREEMPT_ACTIVE) != PREEMPT_DISABLE_OFFSET)
+#define in_atomic_preempt_off() (preempt_count() != PREEMPT_DISABLE_OFFSET)
 
 #ifdef CONFIG_PREEMPT_COUNT
 # define preemptible()	(preempt_count() == 0 && !irqs_disabled())

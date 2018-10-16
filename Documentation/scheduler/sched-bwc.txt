@@ -48,18 +48,33 @@ and return the group to an unconstrained state once more.
 Any updates to a group's bandwidth specification will result in it becoming
 unthrottled if it is in a constrained state.
 
-System wide settings
---------------------
+Slice
+-----
 For efficiency run-time is transferred between the global pool and CPU local
 "silos" in a batch fashion.  This greatly reduces global accounting pressure
 on large systems.  The amount transferred each time such an update is required
 is described as the "slice".
 
-This is tunable via procfs:
-	/proc/sys/kernel/sched_cfs_bandwidth_slice_us (default=5ms)
-
 Larger slice values will reduce transfer overheads, while smaller values allow
 for more fine-grained consumption.
+
+The per-group file cpu.cfs_slice_us controls the slice length within each CPU
+group, different groups could set different values for their own preference.
+Its default value is tunable via procfs:
+
+	/proc/sys/kernel/sched_cfs_bandwidth_slice_us (default=5ms)
+
+Note, updating this file does not automatically update existing groups using
+a default slice.
+
+Burst
+-----
+When a local run queue has no task to run, its unused CPU time is returned
+back to the global pool. If the whole group becomes idle, its periodical
+timer is halted, unused CPU time during this time is accumulated too.
+To avoid burst, a cap should be set by user via cpu.cfs_burst_us, with it
+the accumulated CPU time won't exceed this cap. Its default value allows
+a group to burn all CPU's with the given quota for a whole period.
 
 Statistics
 ----------
