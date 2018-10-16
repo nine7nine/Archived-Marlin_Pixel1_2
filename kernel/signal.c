@@ -14,7 +14,6 @@
 #include <linux/export.h>
 #include <linux/init.h>
 #include <linux/sched.h>
-#include <linux/sched/rt.h>
 #include <linux/fs.h>
 #include <linux/tty.h>
 #include <linux/binfmts.h>
@@ -355,45 +354,13 @@ static bool task_participate_group_stop(struct task_struct *task)
 	return false;
 }
 
-#ifdef __HAVE_ARCH_CMPXCHG
-static inline struct sigqueue *get_task_cache(struct task_struct *t)
-{
-	struct sigqueue *q = t->sigqueue_cache;
-
-	if (cmpxchg(&t->sigqueue_cache, q, NULL) != q)
-		return NULL;
-	return q;
-}
-
-static inline int put_task_cache(struct task_struct *t, struct sigqueue *q)
-{
-	if (cmpxchg(&t->sigqueue_cache, NULL, q) == NULL)
-		return 0;
-	return 1;
-}
-
-#else
-
-static inline struct sigqueue *get_task_cache(struct task_struct *t)
-{
-	return NULL;
-}
-
-static inline int put_task_cache(struct task_struct *t, struct sigqueue *q)
-{
-	return 1;
-}
-
-#endif
-
 /*
  * allocate a new signal queue record
  * - this may be called without locks if and only if t == current, otherwise an
  *   appropriate lock must be held to stop the target task from exiting
  */
 static struct sigqueue *
-__sigqueue_do_alloc(int sig, struct task_struct *t, gfp_t flags,
-		    int override_rlimit, int fromslab)
+__sigqueue_alloc(int sig, struct task_struct *t, gfp_t flags, int override_rlimit)
 {
 	struct sigqueue *q = NULL;
 	struct user_struct *user;
@@ -410,10 +377,7 @@ __sigqueue_do_alloc(int sig, struct task_struct *t, gfp_t flags,
 	if (override_rlimit ||
 	    atomic_read(&user->sigpending) <=
 			task_rlimit(t, RLIMIT_SIGPENDING)) {
-		if (!fromslab)
-			q = get_task_cache(t);
-		if (!q)
-			q = kmem_cache_alloc(sigqueue_cachep, flags);
+		q = kmem_cache_alloc(sigqueue_cachep, flags);
 	} else {
 		print_dropped_signal(sig);
 	}
@@ -430,13 +394,6 @@ __sigqueue_do_alloc(int sig, struct task_struct *t, gfp_t flags,
 	return q;
 }
 
-static struct sigqueue *
-__sigqueue_alloc(int sig, struct task_struct *t, gfp_t flags,
-		 int override_rlimit)
-{
-	return __sigqueue_do_alloc(sig, t, flags, override_rlimit, 0);
-}
-
 static void __sigqueue_free(struct sigqueue *q)
 {
 	if (q->flags & SIGQUEUE_PREALLOC)
@@ -444,21 +401,6 @@ static void __sigqueue_free(struct sigqueue *q)
 	atomic_dec(&q->user->sigpending);
 	free_uid(q->user);
 	kmem_cache_free(sigqueue_cachep, q);
-}
-
-static void sigqueue_free_current(struct sigqueue *q)
-{
-	struct user_struct *up;
-
-	if (q->flags & SIGQUEUE_PREALLOC)
-		return;
-
-	up = q->user;
-	if (rt_prio(current->normal_prio) && !put_task_cache(current, q)) {
-		atomic_dec(&up->sigpending);
-		free_uid(up);
-	} else
-		  __sigqueue_free(q);
 }
 
 void flush_sigqueue(struct sigpending *queue)
@@ -471,21 +413,6 @@ void flush_sigqueue(struct sigpending *queue)
 		list_del_init(&q->list);
 		__sigqueue_free(q);
 	}
-}
-
-/*
- * Called from __exit_signal. Flush tsk->pending and
- * tsk->sigqueue_cache
- */
-void flush_task_sigqueue(struct task_struct *tsk)
-{
-	struct sigqueue *q;
-
-	flush_sigqueue(&tsk->pending);
-
-	q = get_task_cache(tsk);
-	if (q)
-		kmem_cache_free(sigqueue_cachep, q);
 }
 
 /*
@@ -607,7 +534,7 @@ still_pending:
 			(info->si_code == SI_TIMER) &&
 			(info->si_sys_private);
 
-		sigqueue_free_current(first);
+		__sigqueue_free(first);
 	} else {
 		/*
 		 * Ok, it wasn't in the queue.  This must be
@@ -642,8 +569,6 @@ int dequeue_signal(struct task_struct *tsk, sigset_t *mask, siginfo_t *info)
 {
 	bool resched_timer = false;
 	int signr;
-
-	WARN_ON_ONCE(tsk != current);
 
 	/* We only dequeue private signals from ourselves, we don't let
 	 * signalfd steal them
@@ -1574,8 +1499,7 @@ EXPORT_SYMBOL(kill_pid);
  */
 struct sigqueue *sigqueue_alloc(void)
 {
-	/* Preallocated sigqueue objects always from the slabcache ! */
-	struct sigqueue *q = __sigqueue_do_alloc(-1, current, GFP_KERNEL, 0, 1);
+	struct sigqueue *q = __sigqueue_alloc(-1, current, GFP_KERNEL, 0);
 
 	if (q)
 		q->flags |= SIGQUEUE_PREALLOC;
@@ -2844,23 +2768,18 @@ int copy_siginfo_to_user(siginfo_t __user *to, const siginfo_t *from)
  *  @ts: upper bound on process time suspension
  */
 int do_sigtimedwait(const sigset_t *which, siginfo_t *info,
-			const struct timespec *ts)
+		    const struct timespec *ts)
 {
+	ktime_t *to = NULL, timeout = { .tv64 = KTIME_MAX };
 	struct task_struct *tsk = current;
-	long timeout = MAX_SCHEDULE_TIMEOUT;
 	sigset_t mask = *which;
-	int sig;
+	int sig, ret = 0;
 
 	if (ts) {
 		if (!timespec_valid(ts))
 			return -EINVAL;
-		timeout = timespec_to_jiffies(ts);
-		/*
-		 * We can be close to the next tick, add another one
-		 * to ensure we will wait at least the time asked for.
-		 */
-		if (ts->tv_sec || ts->tv_nsec)
-			timeout++;
+		timeout = timespec_to_ktime(*ts);
+		to = &timeout;
 	}
 
 	/*
@@ -2871,7 +2790,7 @@ int do_sigtimedwait(const sigset_t *which, siginfo_t *info,
 
 	spin_lock_irq(&tsk->sighand->siglock);
 	sig = dequeue_signal(tsk, &mask, info);
-	if (!sig && timeout) {
+	if (!sig && timeout.tv64) {
 		/*
 		 * None ready, temporarily unblock those we're interested
 		 * while we are sleeping in so that we'll be awakened when
@@ -2883,8 +2802,9 @@ int do_sigtimedwait(const sigset_t *which, siginfo_t *info,
 		recalc_sigpending();
 		spin_unlock_irq(&tsk->sighand->siglock);
 
-		timeout = freezable_schedule_timeout_interruptible(timeout);
-
+		__set_current_state(TASK_INTERRUPTIBLE);
+		ret = freezable_schedule_hrtimeout_range(to, tsk->timer_slack_ns,
+							 HRTIMER_MODE_REL);
 		spin_lock_irq(&tsk->sighand->siglock);
 		__set_task_blocked(tsk, &tsk->real_blocked);
 		sigemptyset(&tsk->real_blocked);
@@ -2894,7 +2814,7 @@ int do_sigtimedwait(const sigset_t *which, siginfo_t *info,
 
 	if (sig)
 		return sig;
-	return timeout ? -EINTR : -EAGAIN;
+	return ret ? -EINTR : -EAGAIN;
 }
 
 /**
@@ -3605,8 +3525,10 @@ int sigsuspend(sigset_t *set)
 	current->saved_sigmask = current->blocked;
 	set_current_blocked(set);
 
-	__set_current_state(TASK_INTERRUPTIBLE);
-	schedule();
+	while (!signal_pending(current)) {
+		__set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
+	}
 	set_restore_sigmask();
 	return -ERESTARTNOHAND;
 }
