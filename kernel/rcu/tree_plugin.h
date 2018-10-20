@@ -442,20 +442,13 @@ void rcu_read_unlock_special(struct task_struct *t)
 
 		/*
 		 * Remove this task from the list it blocked on.  The task
-		 * now remains queued on the rcu_node corresponding to
-		 * the CPU it first blocked on, so the first attempt to
-		 * acquire the task's rcu_node's ->lock will succeed.
-		 * Keep the loop and add a WARN_ON() out of sheer paranoia.
+		 * now remains queued on the rcu_node corresponding to the
+		 * CPU it first blocked on, so there is no longer any need
+		 * to loop.  Retain a WARN_ON_ONCE() out of sheer paranoia.
 		 */
-		for (;;) {
-			rnp = t->rcu_blocked_node;
-			raw_spin_lock(&rnp->lock);  /* irqs already disabled. */
-			smp_mb__after_unlock_lock();
-			if (rnp == t->rcu_blocked_node)
-				break;
-			WARN_ON_ONCE(1);
-			raw_spin_unlock(&rnp->lock); /* irqs remain disabled. */
-		}
+		rnp = t->rcu_blocked_node;
+		raw_spin_lock_rcu_node(rnp); /* irqs already disabled. */
+		WARN_ON_ONCE(rnp != t->rcu_blocked_node);
 		empty_norm = !rcu_preempt_blocked_readers_cgp(rnp);
 		empty_exp = sync_rcu_preempt_exp_done(rnp);
 		smp_mb(); /* ensure expedited fastpath sees end of RCU c-s. */
@@ -519,7 +512,7 @@ static void rcu_print_detail_task_stall_rnp(struct rcu_node *rnp)
 	unsigned long flags;
 	struct task_struct *t;
 
-	raw_spin_lock_irqsave(&rnp->lock, flags);
+	raw_spin_lock_irqsave_rcu_node(rnp, flags);
 	if (!rcu_preempt_blocked_readers_cgp(rnp)) {
 		raw_spin_unlock_irqrestore(&rnp->lock, flags);
 		return;
@@ -716,39 +709,40 @@ static void sync_rcu_exp_handler(void *info)
  * synchronize_rcu_expedited - Brute-force RCU grace period
  *
  * Wait for an RCU-preempt grace period, but expedite it.  The basic
- * idea is to invoke synchronize_sched_expedited() to push all the tasks to
- * the ->blkd_tasks lists and wait for this list to drain.  This consumes
- * significant time on all CPUs and is unfriendly to real-time workloads,
- * so is thus not recommended for any sort of common-case code.
- * In fact, if you are using synchronize_rcu_expedited() in a loop,
- * please restructure your code to batch your updates, and then Use a
- * single synchronize_rcu() instead.
+ * idea is to IPI all non-idle non-nohz online CPUs.  The IPI handler
+ * checks whether the CPU is in an RCU-preempt critical section, and
+ * if so, it sets a flag that causes the outermost rcu_read_unlock()
+ * to report the quiescent state.  On the other hand, if the CPU is
+ * not in an RCU read-side critical section, the IPI handler reports
+ * the quiescent state immediately.
+ *
+ * Although this is a greate improvement over previous expedited
+ * implementations, it is still unfriendly to real-time workloads, so is
+ * thus not recommended for any sort of common-case code.  In fact, if
+ * you are using synchronize_rcu_expedited() in a loop, please restructure
+ * your code to batch your updates, and then Use a single synchronize_rcu()
+ * instead.
  */
 void synchronize_rcu_expedited(void)
 {
-	struct rcu_node *rnp;
-	struct rcu_node *rnp_unlock;
 	struct rcu_state *rsp = rcu_state_p;
 	unsigned long s;
 
+	/* If expedited grace periods are prohibited, fall back to normal. */
+	if (rcu_gp_is_normal()) {
+		wait_rcu_gp(call_rcu);
+		return;
+	}
+
 	s = rcu_exp_gp_seq_snap(rsp);
-
-	rnp_unlock = exp_funnel_lock(rsp, s);
-	if (rnp_unlock == NULL)
+	if (exp_funnel_lock(rsp, s))
 		return;  /* Someone else did our work for us. */
-
-	rcu_exp_gp_seq_start(rsp);
 
 	/* Initialize the rcu_node tree in preparation for the wait. */
 	sync_rcu_exp_select_cpus(rsp, sync_rcu_exp_handler);
 
-	/* Wait for snapshotted ->blkd_tasks lists to drain. */
-	rnp = rcu_get_root(rsp);
-	synchronize_sched_expedited_wait(rsp);
-
-	/* Clean up and exit. */
-	rcu_exp_gp_seq_end(rsp);
-	mutex_unlock(&rnp_unlock->exp_funnel_mutex);
+	/* Wait for ->blkd_tasks lists to drain, then wake everyone up. */
+	rcu_exp_wait_wake(rsp, s);
 }
 EXPORT_SYMBOL_GPL(synchronize_rcu_expedited);
 
@@ -771,7 +765,7 @@ EXPORT_SYMBOL_GPL(rcu_barrier);
  */
 static void __init __rcu_init_preempt(void)
 {
-	rcu_init_one(rcu_state_p, rcu_data_p);
+	rcu_init_one(rcu_state_p);
 }
 
 /*
@@ -795,7 +789,6 @@ void exit_rcu(void)
 #else /* #ifdef CONFIG_PREEMPT_RCU */
 
 static struct rcu_state *const rcu_state_p = &rcu_sched_state;
-static struct rcu_data __percpu *const rcu_data_p = &rcu_sched_data;
 
 /*
  * Tell them what RCU they are running.
@@ -975,8 +968,7 @@ static int rcu_boost(struct rcu_node *rnp)
 	    READ_ONCE(rnp->boost_tasks) == NULL)
 		return 0;  /* Nothing left to boost. */
 
-	raw_spin_lock_irqsave(&rnp->lock, flags);
-	smp_mb__after_unlock_lock();
+	raw_spin_lock_irqsave_rcu_node(rnp, flags);
 
 	/*
 	 * Recheck under the lock: all tasks in need of boosting
@@ -1145,8 +1137,7 @@ static int rcu_spawn_one_boost_kthread(struct rcu_state *rsp,
 			   "rcub/%d", rnp_index);
 	if (IS_ERR(t))
 		return PTR_ERR(t);
-	raw_spin_lock_irqsave(&rnp->lock, flags);
-	smp_mb__after_unlock_lock();
+	raw_spin_lock_irqsave_rcu_node(rnp, flags);
 	rnp->boost_kthread_task = t;
 	raw_spin_unlock_irqrestore(&rnp->lock, flags);
 	sp.sched_priority = kthread_prio;
@@ -1413,7 +1404,8 @@ static void rcu_prepare_for_idle(void)
 	struct rcu_state *rsp;
 	int tne;
 
-	if (IS_ENABLED(CONFIG_RCU_NOCB_CPU_ALL))
+	if (IS_ENABLED(CONFIG_RCU_NOCB_CPU_ALL) ||
+	    rcu_is_nocb_cpu(smp_processor_id()))
 		return;
 
 	/* Handle nohz enablement switches conservatively. */
@@ -1425,10 +1417,6 @@ static void rcu_prepare_for_idle(void)
 		return;
 	}
 	if (!tne)
-		return;
-
-	/* If this is a no-CBs CPU, no callbacks, just return. */
-	if (rcu_is_nocb_cpu(smp_processor_id()))
 		return;
 
 	/*
@@ -1456,8 +1444,7 @@ static void rcu_prepare_for_idle(void)
 		if (!*rdp->nxttail[RCU_DONE_TAIL])
 			continue;
 		rnp = rdp->mynode;
-		raw_spin_lock(&rnp->lock); /* irqs already disabled. */
-		smp_mb__after_unlock_lock();
+		raw_spin_lock_rcu_node(rnp); /* irqs already disabled. */
 		needwake = rcu_accelerate_cbs(rsp, rnp, rdp);
 		raw_spin_unlock(&rnp->lock); /* irqs remain disabled. */
 		if (needwake)
@@ -1963,8 +1950,7 @@ static void rcu_nocb_wait_gp(struct rcu_data *rdp)
 	bool needwake;
 	struct rcu_node *rnp = rdp->mynode;
 
-	raw_spin_lock_irqsave(&rnp->lock, flags);
-	smp_mb__after_unlock_lock();
+	raw_spin_lock_irqsave_rcu_node(rnp, flags);
 	needwake = rcu_start_future_gp(rnp, rdp, &c);
 	raw_spin_unlock_irqrestore(&rnp->lock, flags);
 	if (needwake)

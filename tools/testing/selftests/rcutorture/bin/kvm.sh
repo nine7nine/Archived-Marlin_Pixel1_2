@@ -42,6 +42,7 @@ TORTURE_DEFCONFIG=defconfig
 TORTURE_BOOT_IMAGE=""
 TORTURE_INITRD="$KVM/initrd"; export TORTURE_INITRD
 TORTURE_KMAKE_ARG=""
+TORTURE_SHUTDOWN_GRACE=180
 TORTURE_SUITE=rcu
 resdir=""
 configs=""
@@ -156,6 +157,11 @@ do
 		resdir=$2
 		shift
 		;;
+	--shutdown-grace)
+		checkarg --shutdown-grace "(seconds)" "$#" "$2" '^[0-9]*$' '^error'
+		TORTURE_SHUTDOWN_GRACE=$2
+		shift
+		;;
 	--torture)
 		checkarg --torture "(suite name)" "$#" "$2" '^\(lock\|rcu\)$' '^--'
 		TORTURE_SUITE=$2
@@ -262,6 +268,7 @@ TORTURE_KMAKE_ARG="$TORTURE_KMAKE_ARG"; export TORTURE_KMAKE_ARG
 TORTURE_QEMU_CMD="$TORTURE_QEMU_CMD"; export TORTURE_QEMU_CMD
 TORTURE_QEMU_INTERACTIVE="$TORTURE_QEMU_INTERACTIVE"; export TORTURE_QEMU_INTERACTIVE
 TORTURE_QEMU_MAC="$TORTURE_QEMU_MAC"; export TORTURE_QEMU_MAC
+TORTURE_SHUTDOWN_GRACE="$TORTURE_SHUTDOWN_GRACE"; export TORTURE_SHUTDOWN_GRACE
 TORTURE_SUITE="$TORTURE_SUITE"; export TORTURE_SUITE
 if ! test -e $resdir
 then

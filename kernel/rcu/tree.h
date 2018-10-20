@@ -70,7 +70,6 @@
 #  define NUM_RCU_LVL_INIT    { NUM_RCU_LVL_0 }
 #  define RCU_NODE_NAME_INIT  { "rcu_node_0" }
 #  define RCU_FQS_NAME_INIT   { "rcu_node_fqs_0" }
-#  define RCU_EXP_NAME_INIT   { "rcu_node_exp_0" }
 #elif NR_CPUS <= RCU_FANOUT_2
 #  define RCU_NUM_LVLS	      2
 #  define NUM_RCU_LVL_0	      1
@@ -79,7 +78,6 @@
 #  define NUM_RCU_LVL_INIT    { NUM_RCU_LVL_0, NUM_RCU_LVL_1 }
 #  define RCU_NODE_NAME_INIT  { "rcu_node_0", "rcu_node_1" }
 #  define RCU_FQS_NAME_INIT   { "rcu_node_fqs_0", "rcu_node_fqs_1" }
-#  define RCU_EXP_NAME_INIT   { "rcu_node_exp_0", "rcu_node_exp_1" }
 #elif NR_CPUS <= RCU_FANOUT_3
 #  define RCU_NUM_LVLS	      3
 #  define NUM_RCU_LVL_0	      1
@@ -89,7 +87,6 @@
 #  define NUM_RCU_LVL_INIT    { NUM_RCU_LVL_0, NUM_RCU_LVL_1, NUM_RCU_LVL_2 }
 #  define RCU_NODE_NAME_INIT  { "rcu_node_0", "rcu_node_1", "rcu_node_2" }
 #  define RCU_FQS_NAME_INIT   { "rcu_node_fqs_0", "rcu_node_fqs_1", "rcu_node_fqs_2" }
-#  define RCU_EXP_NAME_INIT   { "rcu_node_exp_0", "rcu_node_exp_1", "rcu_node_exp_2" }
 #elif NR_CPUS <= RCU_FANOUT_4
 #  define RCU_NUM_LVLS	      4
 #  define NUM_RCU_LVL_0	      1
@@ -100,7 +97,6 @@
 #  define NUM_RCU_LVL_INIT    { NUM_RCU_LVL_0, NUM_RCU_LVL_1, NUM_RCU_LVL_2, NUM_RCU_LVL_3 }
 #  define RCU_NODE_NAME_INIT  { "rcu_node_0", "rcu_node_1", "rcu_node_2", "rcu_node_3" }
 #  define RCU_FQS_NAME_INIT   { "rcu_node_fqs_0", "rcu_node_fqs_1", "rcu_node_fqs_2", "rcu_node_fqs_3" }
-#  define RCU_EXP_NAME_INIT   { "rcu_node_exp_0", "rcu_node_exp_1", "rcu_node_exp_2", "rcu_node_exp_3" }
 #else
 # error "CONFIG_RCU_FANOUT insufficient for NR_CPUS"
 #endif /* #if (NR_CPUS) <= RCU_FANOUT_1 */
@@ -179,6 +175,8 @@ struct rcu_node {
 				/*  beginning of each expedited GP. */
 	unsigned long expmaskinitnext;
 				/* Online CPUs for next expedited GP. */
+				/*  Any CPU that has ever been online will */
+				/*  have its bit set. */
 	unsigned long grpmask;	/* Mask to apply to parent qsmask. */
 				/*  Only one bit will be set in this mask. */
 	int	grplo;		/* lowest-numbered CPU or group here. */
@@ -249,7 +247,9 @@ struct rcu_node {
 				/* Counts of upcoming no-CB GP requests. */
 	raw_spinlock_t fqslock ____cacheline_internodealigned_in_smp;
 
-	struct mutex exp_funnel_mutex ____cacheline_internodealigned_in_smp;
+	spinlock_t exp_lock ____cacheline_internodealigned_in_smp;
+	unsigned long exp_seq_rq;
+	wait_queue_head_t exp_wq[4];
 } ____cacheline_internodealigned_in_smp;
 
 /*
@@ -384,11 +384,9 @@ struct rcu_data {
 #ifdef CONFIG_RCU_FAST_NO_HZ
 	struct rcu_head oom_head;
 #endif /* #ifdef CONFIG_RCU_FAST_NO_HZ */
-	struct mutex exp_funnel_mutex;
-	atomic_long_t expedited_workdone0;	/* # done by others #0. */
-	atomic_long_t expedited_workdone1;	/* # done by others #1. */
-	atomic_long_t expedited_workdone2;	/* # done by others #2. */
-	atomic_long_t expedited_workdone3;	/* # done by others #3. */
+	atomic_long_t exp_workdone1;	/* # done by others #1. */
+	atomic_long_t exp_workdone2;	/* # done by others #2. */
+	atomic_long_t exp_workdone3;	/* # done by others #3. */
 
 	/* 7) Callback offloading. */
 #ifdef CONFIG_RCU_NOCB_CPU
@@ -502,6 +500,8 @@ struct rcu_state {
 						/*  _rcu_barrier(). */
 	/* End of fields guarded by barrier_mutex. */
 
+	struct mutex exp_mutex;			/* Serialize expedited GP. */
+	struct mutex exp_wake_mutex;		/* Serialize wakeup. */
 	unsigned long expedited_sequence;	/* Take a ticket. */
 	atomic_long_t expedited_normal;		/* # fallbacks to normal. */
 	atomic_t expedited_need_qs;		/* # CPUs left to check in. */
@@ -547,6 +547,18 @@ struct rcu_state {
 #define RCU_GP_DOING_FQS 4	/* Wait done for force-quiescent-state time. */
 #define RCU_GP_CLEANUP   5	/* Grace-period cleanup started. */
 #define RCU_GP_CLEANED   6	/* Grace-period cleanup complete. */
+
+#ifndef RCU_TREE_NONCORE
+static const char * const gp_state_names[] = {
+	"RCU_GP_IDLE",
+	"RCU_GP_WAIT_GPS",
+	"RCU_GP_DONE_GPS",
+	"RCU_GP_WAIT_FQS",
+	"RCU_GP_DOING_FQS",
+	"RCU_GP_CLEANUP",
+	"RCU_GP_CLEANED",
+};
+#endif /* #ifndef RCU_TREE_NONCORE */
 
 extern struct list_head rcu_struct_flavors;
 
@@ -665,3 +677,42 @@ static inline void rcu_nocb_q_lengths(struct rcu_data *rdp, long *ql, long *qll)
 #else /* #ifdef CONFIG_PPC */
 #define smp_mb__after_unlock_lock()	do { } while (0)
 #endif /* #else #ifdef CONFIG_PPC */
+
+/*
+ * Wrappers for the rcu_node::lock acquire.
+ *
+ * Because the rcu_nodes form a tree, the tree traversal locking will observe
+ * different lock values, this in turn means that an UNLOCK of one level
+ * followed by a LOCK of another level does not imply a full memory barrier;
+ * and most importantly transitivity is lost.
+ *
+ * In order to restore full ordering between tree levels, augment the regular
+ * lock acquire functions with smp_mb__after_unlock_lock().
+ */
+static inline void raw_spin_lock_rcu_node(struct rcu_node *rnp)
+{
+	raw_spin_lock(&rnp->lock);
+	smp_mb__after_unlock_lock();
+}
+
+static inline void raw_spin_lock_irq_rcu_node(struct rcu_node *rnp)
+{
+	raw_spin_lock_irq(&rnp->lock);
+	smp_mb__after_unlock_lock();
+}
+
+#define raw_spin_lock_irqsave_rcu_node(rnp, flags)	\
+do {							\
+	typecheck(unsigned long, flags);		\
+	raw_spin_lock_irqsave(&(rnp)->lock, flags);	\
+	smp_mb__after_unlock_lock();			\
+} while (0)
+
+static inline bool raw_spin_trylock_rcu_node(struct rcu_node *rnp)
+{
+	bool locked = raw_spin_trylock(&rnp->lock);
+
+	if (locked)
+		smp_mb__after_unlock_lock();
+	return locked;
+}

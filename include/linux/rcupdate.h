@@ -48,9 +48,14 @@
 #include <linux/irqflags.h>
 
 extern int rcu_expedited; /* for sysctl */
+extern int rcu_normal;    /* also for sysctl */
 
 #ifdef CONFIG_TINY_RCU
 /* Tiny RCU doesn't expedite, as its purpose in life is instead to be tiny. */
+static inline bool rcu_gp_is_normal(void)  /* Internal RCU use. */
+{
+	return true;
+}
 static inline bool rcu_gp_is_expedited(void)  /* Internal RCU use. */
 {
 	return false;
@@ -64,6 +69,7 @@ static inline void rcu_unexpedite_gp(void)
 {
 }
 #else /* #ifdef CONFIG_TINY_RCU */
+bool rcu_gp_is_normal(void);     /* Internal RCU use. */
 bool rcu_gp_is_expedited(void);  /* Internal RCU use. */
 void rcu_expedite_gp(void);
 void rcu_unexpedite_gp(void);
@@ -498,14 +504,7 @@ int rcu_read_lock_bh_held(void);
  * CONFIG_DEBUG_LOCK_ALLOC, this assumes we are in an RCU-sched read-side
  * critical section unless it can prove otherwise.
  */
-#ifdef CONFIG_PREEMPT_COUNT
 int rcu_read_lock_sched_held(void);
-#else /* #ifdef CONFIG_PREEMPT_COUNT */
-static inline int rcu_read_lock_sched_held(void)
-{
-	return 1;
-}
-#endif /* #else #ifdef CONFIG_PREEMPT_COUNT */
 
 #else /* #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 
@@ -522,18 +521,10 @@ static inline int rcu_read_lock_bh_held(void)
 	return 1;
 }
 
-#ifdef CONFIG_PREEMPT_COUNT
 static inline int rcu_read_lock_sched_held(void)
 {
-	return preempt_count() != 0 || irqs_disabled();
+	return !preemptible();
 }
-#else /* #ifdef CONFIG_PREEMPT_COUNT */
-static inline int rcu_read_lock_sched_held(void)
-{
-	return 1;
-}
-#endif /* #else #ifdef CONFIG_PREEMPT_COUNT */
-
 #endif /* #else #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 
 #ifdef CONFIG_PROVE_RCU
@@ -741,7 +732,7 @@ static inline void rcu_preempt_sleep_check(void)
  * The tracing infrastructure traces RCU (we want that), but unfortunately
  * some of the RCU checks causes tracing to lock up the system.
  *
- * The tracing version of rcu_dereference_raw() must not call
+ * The no-tracing version of rcu_dereference_raw() must not call
  * rcu_read_lock_held().
  */
 #define rcu_dereference_raw_notrace(p) __rcu_dereference_check((p), 1, __rcu)
@@ -1133,6 +1124,19 @@ static inline void rcu_sysidle_force_exit(void)
 }
 
 #endif /* #else #ifdef CONFIG_NO_HZ_FULL_SYSIDLE */
+
+
+/*
+ * Dump the ftrace buffer, but only one time per callsite per boot.
+ */
+#define rcu_ftrace_dump(oops_dump_mode) \
+do { \
+	static atomic_t ___rfd_beenhere = ATOMIC_INIT(0); \
+	\
+	if (!atomic_read(&___rfd_beenhere) && \
+	    !atomic_xchg(&___rfd_beenhere, 1)) \
+		ftrace_dump(oops_dump_mode); \
+} while (0)
 
 
 #endif /* __LINUX_RCUPDATE_H */
