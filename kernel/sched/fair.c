@@ -1013,6 +1013,7 @@ update_stats_enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 			}
 
 			trace_sched_stat_blocked(tsk, delta);
+			trace_sched_blocked_reason(tsk);
 
 			/*
 			 * Blocking time is in units of nanosecs, so shift by
@@ -2067,7 +2068,7 @@ static int preferred_group_nid(struct task_struct *p, int nid)
 	nodes = node_online_map;
 	for (dist = sched_max_numa_distance; dist > LOCAL_DISTANCE; dist--) {
 		unsigned long max_faults = 0;
-		nodemask_t max_group;
+		nodemask_t max_group = NODE_MASK_NONE;
 		int a, b;
 
 		/* Are there nodes at this distance from each other? */
@@ -2458,6 +2459,7 @@ void task_numa_work(struct callback_head *work)
 	unsigned long migrate, next_scan, now = jiffies;
 	struct task_struct *p = current;
 	struct mm_struct *mm = p->mm;
+	u64 runtime = p->se.sum_exec_runtime;
 	struct vm_area_struct *vma;
 	unsigned long start, end;
 	unsigned long nr_pte_updates = 0;
@@ -2581,6 +2583,17 @@ out:
 	else
 		reset_ptenuma_scan(p);
 	up_read(&mm->mmap_sem);
+
+	/*
+	 * Make sure tasks use at least 32x as much time to run other code
+	 * than they used here, to limit NUMA PTE scanning overhead to 3% max.
+	 * Usually update_task_scan_period slows down scanning enough; on an
+	 * overloaded system we need to limit overhead on a per task basis.
+	 */
+	if (unlikely(p->se.sum_exec_runtime != runtime)) {
+		u64 diff = p->se.sum_exec_runtime - runtime;
+		p->node_stamp += 32 * diff;
+	}
 }
 
 /*

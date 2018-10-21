@@ -3536,6 +3536,7 @@ static void __sched notrace __schedule(bool preempt)
 
 	/* Promote REQ to ACT */
 	rq->clock_update_flags <<= 1;
+	update_rq_clock(rq);
 
 	switch_count = &prev->nivcsw;
 	if (!preempt && prev->state) {
@@ -3548,9 +3549,6 @@ static void __sched notrace __schedule(bool preempt)
 		}
 		switch_count = &prev->nvcsw;
 	}
-
-	if (task_on_rq_queued(prev))
-		update_rq_clock(rq);
 
 	next = pick_next_task(rq, prev, &rf);
 	wallclock = walt_ktime_clock();
@@ -4336,8 +4334,8 @@ static int __sched_setscheduler(struct task_struct *p,
 	int queue_flags = DEQUEUE_SAVE | DEQUEUE_MOVE | DEQUEUE_NOCLOCK;
 	struct rq *rq;
 
-	/* May grab non-irq protected spin_locks: */
-	BUG_ON(in_interrupt());
+	/* The pi code expects interrupts enabled */
+	BUG_ON(pi && in_interrupt());
 recheck:
 	/* Double check policy once rq lock held: */
 	if (policy < 0) {
@@ -5127,7 +5125,7 @@ SYSCALL_DEFINE3(sched_getaffinity, pid_t, pid, unsigned int, len,
  *
  * Return: 0.
  */
-SYSCALL_DEFINE0(sched_yield)
+static void do_sched_yield(void)
 {
 	struct rq *rq = this_rq_lock();
 
@@ -5144,7 +5142,11 @@ SYSCALL_DEFINE0(sched_yield)
 	sched_preempt_enable_no_resched();
 
 	schedule();
+}
 
+SYSCALL_DEFINE0(sched_yield)
+{
+	do_sched_yield();
 	return 0;
 }
 
@@ -5227,7 +5229,7 @@ EXPORT_SYMBOL(__cond_resched_softirq);
 void __sched yield(void)
 {
 	set_current_state(TASK_RUNNING);
-	sys_sched_yield();
+	do_sched_yield();
 }
 EXPORT_SYMBOL(yield);
 
