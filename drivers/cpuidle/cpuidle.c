@@ -44,6 +44,12 @@ void disable_cpuidle(void)
 	off = 1;
 }
 
+bool cpuidle_not_available(struct cpuidle_driver *drv,
+			   struct cpuidle_device *dev)
+{
+	return off || !initialized || !drv || !dev || !dev->enabled;
+}
+
 /**
  * cpuidle_play_dead - cpu off-lining
  *
@@ -66,14 +72,11 @@ int cpuidle_play_dead(void)
 	return -ENODEV;
 }
 
-/**
- * cpuidle_find_deepest_state - Find deepest state meeting specific conditions.
- * @drv: cpuidle driver for the given CPU.
- * @dev: cpuidle device for the given CPU.
- * @freeze: Whether or not the state should be suitable for suspend-to-idle.
- */
-static int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
-				      struct cpuidle_device *dev, bool freeze)
+static int find_deepest_state(struct cpuidle_driver *drv,
+			      struct cpuidle_device *dev,
+			      unsigned int max_latency,
+			      unsigned int forbidden_flags,
+			      bool freeze)
 {
 	unsigned int latency_req = 0;
 	int i, ret = freeze ? -1 : CPUIDLE_DRIVER_STATE_START - 1;
@@ -83,6 +86,8 @@ static int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
 		struct cpuidle_state_usage *su = &dev->states_usage[i];
 
 		if (s->disabled || su->disable || s->exit_latency <= latency_req
+		    || s->exit_latency > max_latency
+		    || (s->flags & forbidden_flags)
 		    || (freeze && !s->enter_freeze))
 			continue;
 
@@ -90,6 +95,17 @@ static int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
 		ret = i;
 	}
 	return ret;
+}
+
+/**
+ * cpuidle_find_deepest_state - Find the deepest available idle state.
+ * @drv: cpuidle driver for the given CPU.
+ * @dev: cpuidle device for the given CPU.
+ */
+int cpuidle_find_deepest_state(struct cpuidle_driver *drv,
+			       struct cpuidle_device *dev)
+{
+	return find_deepest_state(drv, dev, UINT_MAX, 0, false);
 }
 
 static void enter_freeze_proper(struct cpuidle_driver *drv,
@@ -118,10 +134,8 @@ static void enter_freeze_proper(struct cpuidle_driver *drv,
  * them and enter it with frozen tick.  Otherwise, find the deepest state
  * available and enter it normally.
  */
-void cpuidle_enter_freeze(void)
+int cpuidle_enter_freeze(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 {
-	struct cpuidle_device *dev = __this_cpu_read(cpuidle_devices);
-	struct cpuidle_driver *drv = cpuidle_get_cpu_driver(dev);
 	int index;
 
 	/*
@@ -129,24 +143,11 @@ void cpuidle_enter_freeze(void)
 	 * that interrupts won't be enabled when it exits and allows the tick to
 	 * be frozen safely.
 	 */
-	index = cpuidle_find_deepest_state(drv, dev, true);
-	if (index >= 0) {
+	index = find_deepest_state(drv, dev, UINT_MAX, 0, true);
+	if (index > 0)
 		enter_freeze_proper(drv, dev, index);
-		return;
-	}
 
-	/*
-	 * It is not safe to freeze the tick, find the deepest state available
-	 * at all and try to enter it normally.
-	 */
-	index = cpuidle_find_deepest_state(drv, dev, false);
-	if (index >= 0)
-		cpuidle_enter(drv, dev, index);
-	else
-		arch_cpu_idle();
-
-	/* Interrupts are enabled again here. */
-	local_irq_disable();
+	return index;
 }
 
 /**
@@ -161,8 +162,24 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	int entered_state;
 
 	struct cpuidle_state *target_state = &drv->states[index];
+	bool broadcast = !!(target_state->flags & CPUIDLE_FLAG_TIMER_STOP);
 	ktime_t time_start, time_end;
 	s64 diff;
+
+	/*
+	 * Tell the time framework to switch to a broadcast timer because our
+	 * local timer will be shut down.  If a local timer is used from another
+	 * CPU as a broadcast timer, this call may fail if it is not available.
+	 */
+	if (broadcast && tick_broadcast_enter()) {
+		index = find_deepest_state(drv, dev, target_state->exit_latency,
+					   CPUIDLE_FLAG_TIMER_STOP, false);
+		if (index < 0) {
+			default_idle_call();
+			return -EBUSY;
+		}
+		target_state = &drv->states[index];
+	}
 
 	/* Take note of the planned idle state. */
 	sched_idle_set_state(target_state, index);
@@ -177,6 +194,13 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 
 	/* The cpu is no longer idle or about to enter idle. */
 	sched_idle_set_state(NULL, -1);
+
+	if (broadcast) {
+		if (WARN_ON_ONCE(!irqs_disabled()))
+			local_irq_disable();
+
+		tick_broadcast_exit();
+	}
 
 	if (!cpuidle_state_is_coupled(dev, drv, index))
 		local_irq_enable();
