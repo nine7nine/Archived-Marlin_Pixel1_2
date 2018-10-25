@@ -161,7 +161,14 @@ void mdss_dsi_clk_req(struct mdss_dsi_ctrl_pdata *ctrl,
 
 	MDSS_XLOG(ctrl->ndx, enable, ctrl->mdp_busy, current->pid,
 		client);
-	if (enable == 0) {
+	/*
+	 * ensure that before going into ecg or turning
+	 * off the clocks, cmd_mdp_busy is not true. During a
+	 * race condition, clocks are turned off and so the
+	 * isr for cmd_mdp_busy does not get cleared in hw.
+	 */
+	if (enable == MDSS_DSI_CLK_OFF ||
+		enable == MDSS_DSI_CLK_EARLY_GATE) {
 		/* need wait before disable */
 		mutex_lock(&ctrl->cmd_mutex);
 		mdss_dsi_cmd_mdp_busy(ctrl);
@@ -1625,7 +1632,8 @@ static int mdss_dsi_cmds2buf_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 					__func__,  cm->payload[0], len);
 
 			if (!wait || dchdr->wait > VSYNC_PERIOD)
-				usleep_range(dchdr->wait * 1000, dchdr->wait * 1000);
+				usleep_range((dchdr->wait * 1000),
+					     (dchdr->wait * 1000) + 10);
 
 			mdss_dsi_buf_init(tp);
 			len = 0;
@@ -2911,7 +2919,10 @@ bool mdss_dsi_ack_err_status(struct mdss_dsi_ctrl_pdata *ctrl)
 		 * warning message is ignored.
 		 */
 		if (ctrl->panel_data.panel_info.esd_check_enabled &&
-			(ctrl->status_mode == ESD_BTA) && (status & 0x1008000))
+			((ctrl->status_mode == ESD_BTA) ||
+			 (ctrl->status_mode == ESD_REG) ||
+			 (ctrl->status_mode == ESD_REG_NT35596)) &&
+			 (status & 0x1008000))
 			return false;
 
 		pr_err("%s: status=%x\n", __func__, status);
@@ -3130,8 +3141,10 @@ irqreturn_t mdss_dsi_isr(int irq, void *ptr)
 		 * cleared.
 		 */
 		if (ctrl->panel_data.panel_info.esd_check_enabled &&
-			(ctrl->status_mode == ESD_BTA) &&
-			(ctrl->panel_mode == DSI_VIDEO_MODE)) {
+			((ctrl->status_mode == ESD_BTA) ||
+			 (ctrl->status_mode == ESD_REG) ||
+			 (ctrl->status_mode == ESD_REG_NT35596)) &&
+			 (ctrl->panel_mode == DSI_VIDEO_MODE)) {
 			isr &= ~DSI_INTR_ERROR;
 			/* clear only overflow */
 			mdss_dsi_set_reg(ctrl, 0x0c, 0x44440000, 0x44440000);
