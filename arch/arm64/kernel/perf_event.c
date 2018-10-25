@@ -411,10 +411,8 @@ armpmu_reserve_hardware(struct arm_pmu *armpmu)
 	int err;
 	struct platform_device *pmu_device = armpmu->plat_device;
 
-	if (!pmu_device) {
-		pr_err("no PMU device registered\n");
+	if (!pmu_device)
 		return -ENODEV;
-	}
 
 	get_online_cpus();
 	err = armpmu->request_irq(armpmu, armpmu->handle_irq);
