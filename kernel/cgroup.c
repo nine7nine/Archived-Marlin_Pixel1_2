@@ -59,6 +59,8 @@
 #include <linux/delay.h>
 
 #include <linux/atomic.h>
+#include <linux/boostbox.h>
+#include <linux/devfreq_boost.h>
 
 /*
  * pidlists linger the following amount before being destroyed.  The goal
@@ -2584,6 +2586,13 @@ int cgroup_attach_task_to_root(struct task_struct *tsk, int wait)
 	ret = cgroup_attach_task(cgrp, tsk, false);
 
 	threadgroup_unlock(tsk);
+
+	/* Boost CPU to the max for 500 ms when launcher becomes a top app */
+	if (!memcmp(tsk->comm, "s.nexuslauncher", sizeof("s.nexuslauncher")) &&
+		!memcmp(cgrp->kn->name, "top-app", sizeof("top-app")) && !ret) {
+		boostbox_kick_max(500);
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 500);
+	}
 
 	put_task_struct(tsk);
 out_unlock_cgroup:
