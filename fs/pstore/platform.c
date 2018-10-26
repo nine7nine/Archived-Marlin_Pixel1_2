@@ -276,7 +276,7 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 	u64		id;
 	unsigned int	part = 1;
 	unsigned long	flags = 0;
-	int		is_locked = 0;
+	int		is_locked;
 	int		ret;
 
 	why = get_reason_str(reason);
@@ -287,8 +287,10 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 			pr_err("pstore dump routine blocked in %s path, may corrupt error record\n"
 				       , in_nmi() ? "NMI" : why);
 		}
-	} else
+	} else {
 		spin_lock_irqsave(&psinfo->buf_lock, flags);
+		is_locked = 1;
+	}
 	oopscount++;
 	while (total < kmsg_bytes) {
 		char *dst;
@@ -296,19 +298,25 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 		int hsize;
 		int zipped_len = -1;
 		size_t len;
-		bool compressed;
+		bool compressed = false;
 		size_t total_len;
 
-		if (big_oops_buf) {
+		if (big_oops_buf && is_locked) {
 			dst = big_oops_buf;
-			hsize = sprintf(dst, "%s#%d Part%d\n", why,
-							oopscount, part);
-			size = big_oops_buf_sz - hsize;
+			size = big_oops_buf_sz;
+		} else {
+			dst = psinfo->buf;
+			size = psinfo->bufsize;
+		}
 
-			if (!kmsg_dump_get_buffer(dumper, true, dst + hsize,
-								size, &len))
-				break;
+		hsize = sprintf(dst, "%s#%d Part%u\n", why, oopscount, part);
+		size -= hsize;
 
+		if (!kmsg_dump_get_buffer(dumper, true, dst + hsize,
+					  size, &len))
+			break;
+
+		if (big_oops_buf && is_locked) {
 			zipped_len = pstore_compress(dst, psinfo->buf,
 						hsize + len, psinfo->bufsize);
 
@@ -316,21 +324,9 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 				compressed = true;
 				total_len = zipped_len;
 			} else {
-				compressed = false;
 				total_len = copy_kmsg_to_buffer(hsize, len);
 			}
 		} else {
-			dst = psinfo->buf;
-			hsize = sprintf(dst, "%s#%d Part%d\n", why, oopscount,
-									part);
-			size = psinfo->bufsize - hsize;
-			dst += hsize;
-
-			if (!kmsg_dump_get_buffer(dumper, true, dst,
-								size, &len))
-				break;
-
-			compressed = false;
 			total_len = hsize + len;
 		}
 
@@ -342,10 +338,7 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 		total += total_len;
 		part++;
 	}
-	if (pstore_cannot_block_path(reason)) {
-		if (is_locked)
-			spin_unlock_irqrestore(&psinfo->buf_lock, flags);
-	} else
+	if (is_locked)
 		spin_unlock_irqrestore(&psinfo->buf_lock, flags);
 }
 
@@ -576,7 +569,9 @@ static void pstore_timefunc(unsigned long dummy)
 		schedule_work(&pstore_work);
 	}
 
-	mod_timer(&pstore_timer, jiffies + msecs_to_jiffies(pstore_update_ms));
+	if (pstore_update_ms >= 0)
+		mod_timer(&pstore_timer,
+			  jiffies + msecs_to_jiffies(pstore_update_ms));
 }
 
 module_param(backend, charp, 0444);
