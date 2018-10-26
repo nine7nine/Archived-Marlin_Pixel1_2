@@ -254,11 +254,11 @@ static int ovl_copy_up_locked(struct dentry *workdir, struct dentry *upperdir,
 	if (err)
 		goto out_cleanup;
 
-	mutex_lock(&newdentry->d_inode->i_mutex);
+	inode_lock(newdentry->d_inode);
 	err = ovl_set_attr(newdentry, stat);
 	if (!err && attr)
 		err = notify_change(newdentry, attr, NULL);
-	mutex_unlock(&newdentry->d_inode->i_mutex);
+	inode_unlock(newdentry->d_inode);
 	if (err)
 		goto out_cleanup;
 
@@ -362,9 +362,9 @@ int ovl_copy_up_one(struct dentry *parent, struct dentry *dentry,
 		err = 0;
 		/* Raced with another copy-up?  Do the setattr here */
 		if (attr) {
-			mutex_lock(&upperdentry->d_inode->i_mutex);
+			inode_lock(upperdentry->d_inode);
 			err = notify_change(upperdentry, attr, NULL);
-			mutex_unlock(&upperdentry->d_inode->i_mutex);
+			inode_unlock(upperdentry->d_inode);
 		}
 		goto out_put_cred;
 	}

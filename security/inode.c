@@ -104,7 +104,7 @@ struct dentry *securityfs_create_file(const char *name, umode_t mode,
 
 	dir = parent->d_inode;
 
-	mutex_lock(&dir->i_mutex);
+	inode_lock(dir);
 	dentry = lookup_one_len2(name, mount, parent, strlen(name));
 	if (IS_ERR(dentry))
 		goto out;
@@ -134,14 +134,14 @@ struct dentry *securityfs_create_file(const char *name, umode_t mode,
 	}
 	d_instantiate(dentry, inode);
 	dget(dentry);
-	mutex_unlock(&dir->i_mutex);
+	inode_unlock(dir);
 	return dentry;
 
 out1:
 	dput(dentry);
 	dentry = ERR_PTR(error);
 out:
-	mutex_unlock(&dir->i_mutex);
+	inode_unlock(dir);
 	simple_release_fs(&mount, &mount_count);
 	return dentry;
 }
@@ -200,7 +200,7 @@ void securityfs_remove(struct dentry *dentry)
 	if (!parent || !parent->d_inode)
 		return;
 
-	mutex_lock(&parent->d_inode->i_mutex);
+	inode_lock(parent->d_inode);
 	if (positive(dentry)) {
 		if (dentry->d_inode) {
 			if (S_ISDIR(dentry->d_inode->i_mode))
@@ -210,7 +210,7 @@ void securityfs_remove(struct dentry *dentry)
 			dput(dentry);
 		}
 	}
-	mutex_unlock(&parent->d_inode->i_mutex);
+	inode_unlock(parent->d_inode);
 	simple_release_fs(&mount, &mount_count);
 }
 EXPORT_SYMBOL_GPL(securityfs_remove);

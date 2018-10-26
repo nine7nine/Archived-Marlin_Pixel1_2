@@ -1645,7 +1645,7 @@ generic_add_lease(struct file *filp, long arg, struct file_lock **flp, void **pr
 
 	if (is_deleg && arg == F_WRLCK) {
 		/* Write delegations are not currently supported: */
-		mutex_unlock(&inode->i_mutex);
+		inode_unlock(inode);
 		WARN_ON_ONCE(1);
 		return -EINVAL;
 	}
@@ -1723,7 +1723,7 @@ out:
 	percpu_up_read_preempt_enable(&file_rwsem);
 	locks_dispose_list(&dispose);
 	if (is_deleg)
-		mutex_unlock(&inode->i_mutex);
+		inode_unlock(inode);
 	if (!error && !my_fl)
 		*flp = NULL;
 	return error;
