@@ -1,41 +1,9 @@
 README
 
-This is my own kernel for Marlin/Sailfish aka: OG Pixel.
+This repo is archived/old. 
 
-the main purpose of this repo / kernel sources is for my own use, learning about
-linux internals, porting, experimentation, etc... 
+Experiments with the Google Pixel 1 kernel. I ported most of the core linux kernel internals to 4.9.
 
-At this point, it really is only for me and not suitable for other people to
-be using (at all). That may change at some point ~ but currently, it's just a 
-bad plan to use this kernel/repo. (see below).
+I also ported the android Energy Aware Scheduler code up to 4.9+.
 
-NOTES/WARNINGS:
-
-1). I am in the process of porting/modernizing this kernel. Therefore, I 
-    highly suggest not trying to fork, compile or use this source code. 
-
-2). It's currently very unstable.
-
-3). it's subject to forced-updates (quite frequently, like everyday).
-
-5). It is absolutely a terrible choice to cherry-pick from, So i would reccomend 
-    NOT trying to cherry-pick code from here. why?
-
-- this kernel isn't actually a 3.18.x kernel anymore, most of the core kernel
-  is more like linux-4.4 <=> 4.9+, depending on the subsystem... It's really 
-  only the dirvers that are (mostly) consistent with 3.18 (and even some of them 
-  have necessary changes, due to porting).
-
-- lots of code/commits are incompatible with kernels under android/linux-4.4 
-  kernels, other msm8996 kernels or even other marlin kernels.
-
-- many of the changes are dependent on each other and not easily decoupled, nor 
-  are dependencies obvious. 
-
-6). When I have stabilized the kernel, I will likely change the "topics" on this
-    github repo to reflect that it may be more stable / possibly okay to use ~ 
-    but I have absolutely no ETA on that, so don't ask/email me.
-
-7). please do not email me, unless you have a damn good reason to do so.
-
-thanks.
+keeping for historical reference.
